@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Target** | `dummy-infra` |
-| **Generated** | 2026-06-27 15:21 UTC |
+| **Generated** | 2026-06-27 16:00 UTC |
 | **Scanners** | audit_aws · audit_sast · audit_secrets · checkov · mask_pii · scan_dependencies · trivy |
 | **Auditor** | Agentic K-SecOps MCP Pipeline |
 
