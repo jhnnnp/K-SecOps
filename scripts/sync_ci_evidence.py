@@ -139,8 +139,8 @@ def _render_evidence(repo: str, pass_ev: PrEvidence, fail_ev: PrEvidence) -> str
         f"{owner}/{name}/secops-gate.yml?branch=main&label=SecOps%20Gate"
     )
 
-    pass_icon = "PASS" if pass_ev.check_conclusion == "success" else pass_ev.check_conclusion.upper()
-    fail_icon = "FAIL" if fail_ev.check_conclusion == "failure" else fail_ev.check_conclusion.upper()
+    pass_icon = "PASS" if pass_ev.check_conclusion == "success" else (pass_ev.check_conclusion or "UNKNOWN").upper()
+    fail_icon = "FAIL" if fail_ev.check_conclusion == "failure" else (fail_ev.check_conclusion or "PENDING").upper()
 
     return f"""# CI Evidence (auto-synced)
 
