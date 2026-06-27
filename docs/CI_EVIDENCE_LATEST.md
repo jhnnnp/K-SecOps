@@ -1,6 +1,6 @@
 # CI Evidence (auto-synced)
 
-_Last updated: 2026-06-27 17:25 UTC_
+_Last updated: 2026-06-27 18:15 UTC_
 
 ![SecOps Gate workflow](https://img.shields.io/github/actions/workflow/status/jhnnnp/K-SecOps/secops-gate.yml?branch=main&label=SecOps%20Gate)
 
@@ -11,7 +11,7 @@ _Last updated: 2026-06-27 17:25 UTC_
 | PASSED | [#1](https://github.com/jhnnnp/K-SecOps/pull/1) | `devsecops-gate` | success | **PASS** |
 | FAILED (intentional) | [#2](https://github.com/jhnnnp/K-SecOps/pull/2) | `devsecops-gate` | failure | **FAIL** |
 
-- PASSED run: https://github.com/jhnnnp/K-SecOps/actions/runs/28296390825/job/83836946875
+- PASSED run: https://github.com/jhnnnp/K-SecOps/actions/runs/28297610165/job/83840165068
 - FAILED run: https://github.com/jhnnnp/K-SecOps/actions/runs/28296391939/job/83836950137
 
 ## Gate comment snapshot (FAILED PR)
