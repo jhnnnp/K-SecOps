@@ -8,6 +8,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  security-events: write
 
 jobs:
   devsecops-gate:
@@ -70,6 +71,15 @@ jobs:
             reports/CI_AUDIT_REPORT.md
             reports/CI_SUMMARY.md
             reports/GATE_RESULT.json
+            reports/SBOM.json
+            reports/sast.sarif
+
+      - name: Upload SAST SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: reports/sast.sarif
+          category: k-secops-sast
 
       - name: Post PR summary comment
         if: github.event_name == 'pull_request' && always()

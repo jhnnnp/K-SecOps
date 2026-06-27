@@ -17,7 +17,10 @@ os.environ.setdefault("SECOPS_REPO_SCAN", "1")
 
 from tools.aws_auditor import audit_aws_config  # noqa: E402
 from tools.compliance_report import generate_compliance_report  # noqa: E402
+from tools.risk_score import compute_risk_score  # noqa: E402
 from tools.sast_auditor import audit_sast  # noqa: E402
+from tools.sarif_exporter import write_sarif  # noqa: E402
+from tools.sbom_gate import check_sbom_drift, export_sbom_artifact  # noqa: E402
 from tools.scan_dependencies import scan_dependencies  # noqa: E402
 from tools.scan_infra import scan_infrastructure  # noqa: E402
 from tools.secret_auditor import audit_secrets  # noqa: E402
@@ -26,6 +29,8 @@ BASELINE_PATH = ROOT / "config" / "secops-baseline.json"
 REPORT_PATH = ROOT / "reports" / "CI_AUDIT_REPORT.md"
 SUMMARY_PATH = ROOT / "reports" / "CI_SUMMARY.md"
 GATE_RESULT_PATH = ROOT / "reports" / "GATE_RESULT.json"
+SARIF_PATH = ROOT / "reports" / "sast.sarif"
+SBOM_PATH = ROOT / "reports" / "SBOM.json"
 
 
 @dataclass
@@ -51,6 +56,9 @@ def main() -> int:
     aws = audit_aws_config(compliance_target, live_scan=os.getenv("SECOPS_AWS_LIVE", "0") == "1")
     deps = scan_dependencies(deps_targets, strict=False)
     sast = audit_sast(sast_target, repo_wide=True)
+    sbom_drift = check_sbom_drift("requirements.txt")
+    export_sbom_artifact("requirements.txt", str(SBOM_PATH.relative_to(ROOT)))
+    write_sarif(sast.findings, SARIF_PATH)
 
     report = generate_compliance_report(
         target_path=compliance_target,
@@ -64,7 +72,16 @@ def main() -> int:
     )
 
     baseline = _load_baseline()
-    _evaluate_gate(result, baseline, scan, secrets, aws, deps, sast)
+    _evaluate_gate(result, baseline, scan, secrets, aws, deps, sast, sbom_drift)
+
+    risk = compute_risk_score(
+        secrets=secrets,
+        sast=sast,
+        deps=deps,
+        scan=scan,
+        aws=aws,
+        sbom_new_count=len(sbom_drift.new_components),
+    )
 
     summary = _build_summary(
         result,
@@ -73,6 +90,8 @@ def main() -> int:
         aws,
         deps,
         sast,
+        sbom_drift,
+        risk,
         report,
         infra_targets=infra_targets,
         secrets_target=secrets_target,
@@ -80,16 +99,27 @@ def main() -> int:
         sast_target=sast_target,
     )
     SUMMARY_PATH.write_text(summary, encoding="utf-8")
-    _write_gate_result(result, secrets_target=secrets_target)
+    _write_gate_result(result, secrets_target=secrets_target, risk=risk, sbom_drift=sbom_drift)
 
     print(summary)
     return 0 if result.passed else 1
 
 
-def _write_gate_result(result: GateResult, *, secrets_target: str) -> None:
+def _write_gate_result(result: GateResult, *, secrets_target: str, risk, sbom_drift) -> None:
     payload = {
         "passed": result.passed,
         "reasons": result.reasons,
+        "risk_score": risk.score,
+        "risk_level": risk.level,
+        "risk_blockers": risk.blockers,
+        "sbom_drift": {
+            "passed": sbom_drift.passed,
+            "new_dependencies": [item.component for item in sbom_drift.new_components],
+        },
+        "artifacts": {
+            "sarif": str(SARIF_PATH.relative_to(ROOT)),
+            "sbom": str(SBOM_PATH.relative_to(ROOT)),
+        },
         "summary_path": str(SUMMARY_PATH.relative_to(ROOT)),
         "report_path": str(REPORT_PATH.relative_to(ROOT)),
         "repository": os.getenv("GITHUB_REPOSITORY", ""),
@@ -119,7 +149,7 @@ def _finding_key(scanner: str, finding_type: str, resource: str) -> str:
     return f"{scanner}|{finding_type}|{resource}"
 
 
-def _evaluate_gate(result: GateResult, baseline: dict, scan, secrets, aws, deps, sast) -> None:
+def _evaluate_gate(result: GateResult, baseline: dict, scan, secrets, aws, deps, sast, sbom_drift) -> None:
     if baseline.get("fail_on_scanner_errors") and scan.errors:
         result.passed = False
         result.reasons.append(f"Scanner errors: {[e.scanner for e in scan.errors]}")
@@ -180,6 +210,12 @@ def _evaluate_gate(result: GateResult, baseline: dict, scan, secrets, aws, deps,
             result.passed = False
             result.reasons.append(f"Unbaseline AWS finding: {key}")
 
+    for drift in sbom_drift.new_components:
+        result.passed = False
+        result.reasons.append(
+            f"SBOM drift: unauthorized dependency `{drift.component}` in {sbom_drift.manifest}"
+        )
+
     if not baseline.get("fail_on_scan_critical", True):
         return
 
@@ -201,6 +237,8 @@ def _build_summary(
     aws,
     deps,
     sast,
+    sbom_drift,
+    risk,
     report,
     *,
     infra_targets: list[str],
@@ -229,7 +267,12 @@ def _build_summary(
         f"- Secrets scan (repo-wide): `{secrets_target}`",
         f"- SAST scan (`{sast.engine}`): `{sast_target}`",
         f"- SCA / Dependency CVE scan (Trivy vuln DB): `{', '.join(deps_targets)}`",
+        f"- SBOM drift gate: `{sbom_drift.manifest}` ({sbom_drift.current_count} direct deps, baseline {sbom_drift.allowed_count})",
         f"- Infrastructure scan (fixture + self): `{', '.join(infra_targets)}`",
+        "",
+        "## Risk Score",
+        f"- Composite risk: **{risk.score}/100** ({risk.level})",
+        f"- Blockers: **{len(risk.blockers)}**",
         "",
         "## Scan Summary",
         f"- Infrastructure findings: **{len(scan.findings)}** (critical={scan.summary.critical}, high={scan.summary.high})",
@@ -238,9 +281,16 @@ def _build_summary(
         f"- SCA CVEs — Trivy HIGH+ (NVD): **{len([d for d in deps.findings if d.severity in {'CRITICAL', 'HIGH'}])}** (app manifest: **{len(app_deps)}**)",
         f"- AWS config findings: **{len(aws.findings)}** (live={aws.live_scan})",
         f"- Compliance violations: **{report.summary.total_violations}**",
+        f"- SARIF: `{SARIF_PATH.relative_to(ROOT)}` | SBOM: `{SBOM_PATH.relative_to(ROOT)}`",
         f"- Report: `{report.report_path}`",
         "",
     ]
+
+    if sbom_drift.new_components:
+        lines.extend(["## SBOM Drift (BLOCKED)", ""])
+        for item in sbom_drift.new_components:
+            lines.append(f"- `{item.component}` — {item.reason}")
+        lines.append("")
 
     if app_secrets:
         lines.extend(["## Application Code Secrets (BLOCKED)", ""])

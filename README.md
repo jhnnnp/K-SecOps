@@ -57,6 +57,7 @@ flowchart TB
 | **C** | `audit_aws_config` | `dummy-infra/aws` | policy JSON + optional boto3 live |
 | **D** | `audit_sast` (Semgrep / regex) | `.` (src + fixtures) | `src/` SAST finding → **immediate FAIL** |
 | **E** | `scan_dependencies` (Trivy SCA) | `requirements.txt`, `dummy-infra/deps` | app manifest HIGH+ CVE (NVD) → **FAIL** |
+| **F** | `sbom_gate` + CycloneDX SBOM | `requirements.txt` | unauthorized direct dep → **FAIL** |
 
 - **MCP agent**: strict sandbox — `dummy-infra/`, `reports/` only
 - **CI**: `SECOPS_REPO_SCAN=1` — secrets scan real application code

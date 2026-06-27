@@ -1,0 +1,11 @@
+{
+  "description": "Approved direct dependencies for requirements.txt. Unauthorized additions fail the SBOM drift gate.",
+  "manifest": "requirements.txt",
+  "allowed_dependencies": [
+    "fastapi",
+    "uvicorn",
+    "mcp",
+    "pydantic",
+    "boto3"
+  ]
+}

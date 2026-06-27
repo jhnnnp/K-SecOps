@@ -13,6 +13,7 @@ from tools.models import (
     SecretFinding,
     summarize_findings,
 )
+from tools.sbom_gate import SbomGateResult
 
 
 def _load_ci_gate_module():
@@ -40,6 +41,8 @@ def test_ci_gate_passes_on_baseline_dummy_infra():
     assert "Multi-Track Scope" in result.stdout
     assert "SAST findings" in result.stdout
     assert "SCA CVEs" in result.stdout
+    assert "SBOM drift gate" in result.stdout
+    assert "Risk Score" in result.stdout
 
 
 def test_gate_fails_on_secret_outside_fixture():
@@ -63,7 +66,7 @@ def test_gate_fails_on_secret_outside_fixture():
     )
     scan, aws, deps, sast = _empty_scan_bundle()
 
-    ci_gate._evaluate_gate(gate, baseline, scan, secrets, aws, deps, sast)
+    ci_gate._evaluate_gate(gate, baseline, scan, secrets, aws, deps, sast, _empty_sbom_drift())
     assert gate.passed is False
     assert any("application code" in reason for reason in gate.reasons)
 
@@ -90,7 +93,7 @@ def test_gate_fails_on_os_system_in_application_code():
     scan, aws, deps, _ = _empty_scan_bundle()
     secrets = AuditSecretsResult(findings=[], files_scanned=0, target_path=".")
 
-    ci_gate._evaluate_gate(gate, baseline, scan, secrets, aws, deps, sast)
+    ci_gate._evaluate_gate(gate, baseline, scan, secrets, aws, deps, sast, _empty_sbom_drift())
     assert gate.passed is False
     assert any("sast.os_system" in reason for reason in gate.reasons)
 
@@ -117,7 +120,7 @@ def test_gate_fails_on_sast_in_application_code():
     scan, aws, deps, _ = _empty_scan_bundle()
     secrets = AuditSecretsResult(findings=[], files_scanned=0, target_path=".")
 
-    ci_gate._evaluate_gate(gate, baseline, scan, secrets, aws, deps, sast)
+    ci_gate._evaluate_gate(gate, baseline, scan, secrets, aws, deps, sast, _empty_sbom_drift())
     assert gate.passed is False
     assert any("SAST in application code" in reason for reason in gate.reasons)
 
@@ -133,6 +136,15 @@ def _empty_baseline() -> dict:
         "fail_on_scan_critical": True,
         "fail_on_scanner_errors": True,
     }
+
+
+def _empty_sbom_drift() -> SbomGateResult:
+    return SbomGateResult(
+        manifest="requirements.txt",
+        allowed_count=5,
+        current_count=5,
+        passed=True,
+    )
 
 
 def _empty_scan_bundle():

@@ -1,0 +1,2 @@
+fastapi>=0.1
+unauthorized-package>=1.0

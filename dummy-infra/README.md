@@ -13,6 +13,8 @@
 | 5 | `.env.leaked` | AWS Key, API Key, GitHub PAT, JWT, DB URL, Slack webhook | `audit_secrets` | ISMS-2.9.2, EFT-SEC-04 |
 | 6 | `deps/requirements.txt` | Known HIGH/CRITICAL CVEs (urllib3 pin) | `scan_dependencies` | ISMS-2.8.1 |
 | 7 | `code/unsafe_sast.py` | eval(), exec(), os.system, pickle.loads, shell=True | `audit_sast` | EFT-SEC-05 |
+| 8 | `code/banking_api.py` | SQLi, SSRF, weak crypto, pickle, PII logging | `audit_sast` (Semgrep) | EFT-SEC-05 |
+| 9 | `terraform/s3-insecure.tf` | public S3 ACL, open SG, no PAB | `scan_infrastructure` (Checkov) | ISMS-2.7.1 |
 
 ## Quick verify
 
