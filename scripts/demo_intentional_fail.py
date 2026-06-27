@@ -18,6 +18,7 @@ from tools.models import (
     SecretFinding,
     summarize_findings,
 )
+from tools.sbom_gate import SbomGateResult
 
 
 def main() -> int:
@@ -63,8 +64,14 @@ def main() -> int:
         target_path="none",
     )
     sast = AuditSastResult(findings=[], files_scanned=0, target_path=".")
+    sbom_drift = SbomGateResult(
+        manifest="requirements.txt",
+        allowed_count=5,
+        current_count=5,
+        passed=True,
+    )
 
-    ci_gate._evaluate_gate(gate, baseline, scan, secrets, aws, deps, sast)
+    ci_gate._evaluate_gate(gate, baseline, scan, secrets, aws, deps, sast, sbom_drift)
 
     print("== Intentional Fail Demo (local simulation) ==")
     print(f"Gate passed: {gate.passed}")

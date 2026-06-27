@@ -115,8 +115,15 @@ def _fetch_pr_evidence(repo: str, pr_number: int, token: str) -> PrEvidence:
 
 def _pick_gate_run(check_runs: list[dict]) -> dict | None:
     for run in check_runs:
+        if (run.get("name") or "").lower() == "devsecops-gate":
+            return run
+    for run in check_runs:
         name = (run.get("name") or "").lower()
-        if "secops" in name or "devsecops" in name or name == "devsecops-gate":
+        if "devsecops" in name and "sast" not in name:
+            return run
+    for run in check_runs:
+        name = (run.get("name") or "").lower()
+        if "gate" in name:
             return run
     return check_runs[0] if check_runs else None
 

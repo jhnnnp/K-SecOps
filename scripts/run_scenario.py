@@ -174,7 +174,7 @@ def _run_pr_pass(*, dry_run: bool) -> int:
 
     _run_git("add", "dummy-infra/README.md")
     _run_git("commit", "-m", f"docs: ci pass demo ({stamp})")
-    _run_git("push", "-u", "origin", branch)
+    _run_git("push", "--force-with-lease", "-u", "origin", branch)
 
     pr_url = _gh_pr_create(
         branch=branch,
@@ -214,7 +214,7 @@ def _run_pr_fail(*, dry_run: bool) -> int:
 
     _run_git("add", "src/main.py")
     _run_git("commit", "-m", "demo: intentional secret fail for CI evidence")
-    _run_git("push", "-u", "origin", branch)
+    _run_git("push", "--force-with-lease", "-u", "origin", branch)
 
     pr_url = _gh_pr_create(
         branch=branch,
