@@ -1,0 +1,24 @@
+{
+  "meta": {
+    "framework": "PIPA",
+    "full_name": "개인정보보호법",
+    "description": "국가법령정보센터 조문 기반. ISMS-P와 병행 매핑.",
+    "primary_source": "https://www.law.go.kr/LSW/lsLink.do?lsNm=%EA%B0%9C%EC%9D%B8%EC%A0%95%EB%B3%B4%20%EB%B3%B4%ED%98%B8%EB%B2%95"
+  },
+  "controls": [
+    {
+      "control_id": "PIPA-29",
+      "framework": "PIPA",
+      "official_citation": "개인정보보호법 제29조(안전조치의무)",
+      "official_text": "개인정보처리자는 개인정보가 분실·도난·유출·위조·변조 또는 훼손되지 아니하도록 내부 관리계획 수립, 접속기록 보관 등 대통령령으로 정하는 바에 따라 안전성 확보에 필요한 기술적·관리적 및 물리적 조치를 하여야 한다.",
+      "source_url": "https://www.law.go.kr/LSW/lsLink.do?lsNm=%EA%B0%9C%EC%9D%B8%EC%A0%95%EB%B3%B4%20%EB%B3%B4%ED%98%B8%EB%B2%95&joNo=0029000000",
+      "related_subordinate": [
+        "개인정보보호법 시행령 제30조",
+        "개인정보의 안전성 확보조치 기준(개인정보보호위원회 고시)"
+      ],
+      "title": "안전조치의무",
+      "checklist_question": "개인정보의 분실·도난·유출·위조·변조·훼손 방지를 위한 기술적·관리적·물리적 조치를 이행하고 있는가?",
+      "pass_criteria": "접근통제·암호화·접속기록 보관·마스킹 등 시행령 제30조 각 호 이행"
+    }
+  ]
+}

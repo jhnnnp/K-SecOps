@@ -12,8 +12,9 @@ Finding (mask_pii / trivy / checkov / audit_secrets)
     ▼
 finding_rules.json          ← 결함 사유, 권고 조치, 우선순위, 필요 증적
     │
-    ├──► isms_p_controls.json   ← 진단 질문, pass_criteria, assessment_method
-    └──► eft_controls.json      ← 전자금융 진단 질문, pass_criteria
+    ├──► isms_p_controls.json   ← ISMS-P 2022 공식 통제번호 + 인증기준 요지
+    ├──► eft_controls.json      ← 전자금융감독규정 조문 인용 (EFT-SEC-XX = 내부 키)
+    └──► pipa_controls.json     ← 개인정보보호법 제29조 등
     │
     ▼
 generate_compliance_report → SAMPLE_AUDIT_REPORT.md (Badge + Lab format)
@@ -28,8 +29,9 @@ generate_compliance_report → SAMPLE_AUDIT_REPORT.md (Badge + Lab format)
 | File | 역할 |
 |------|------|
 | `src/compliance/schema.json` | Lab 필드 JSON Schema 정의 |
-| `src/compliance/isms_p_controls.json` | ISMS-P 15개 MVP 통제 (101개 확장 가능) |
-| `src/compliance/eft_controls.json` | 전자금융 10개 MVP 통제 |
+| `src/compliance/isms_p_controls.json` | ISMS-P 2022 MVP 통제 12개 (`official_citation` 포함) |
+| `src/compliance/eft_controls.json` | 전자금융 10개 (`official_citation`, law.go.kr URL) |
+| `src/compliance/pipa_controls.json` | 개인정보보호법 제29조 안전조치의무 |
 | `src/compliance/finding_rules.json` | Finding type → 통제 + Lab 수준 결함·권고 |
 
 ---
@@ -55,15 +57,15 @@ generate_compliance_report → SAMPLE_AUDIT_REPORT.md (Badge + Lab format)
 
 | finding_type | Scanner | Default Severity | Controls |
 |--------------|---------|------------------|----------|
-| `pii.korean_rrn` | mask_pii | HIGH | ISMS-2.10.1, EFT-SEC-08, EFT-SEC-07 |
-| `pii.account_number` | mask_pii | HIGH | ISMS-2.10.1, EFT-SEC-08 |
-| `secret.aws_access_key` | audit_secrets | CRITICAL | ISMS-2.9.2, ISMS-2.9.1, EFT-SEC-04 |
+| `pii.korean_rrn` | mask_pii | HIGH | ISMS-3.2.3, EFT-SEC-08, EFT-SEC-07 |
+| `pii.account_number` | mask_pii | HIGH | ISMS-3.2.3, EFT-SEC-08 |
+| `secret.aws_access_key` | audit_secrets | CRITICAL | ISMS-2.7.2, ISMS-2.7.1, EFT-SEC-04 |
 | `secret.api_key` | audit_secrets | CRITICAL | ISMS-2.5.1, EFT-SEC-03 |
-| `k8s.privileged_container` | checkov | CRITICAL | ISMS-2.7.2, ISMS-2.5.2, EFT-SEC-01 |
-| `container.run_as_root` | checkov/trivy | HIGH | ISMS-2.5.2, EFT-SEC-01 |
-| `container.critical_cve` | trivy | CRITICAL | ISMS-2.11.1, ISMS-2.7.3, EFT-SEC-06 |
-| `k8s.missing_network_policy` | checkov | HIGH | ISMS-2.7.1, EFT-SEC-05 |
-| `k8s.exposed_nodeport` | checkov | HIGH | ISMS-2.7.1, EFT-SEC-01 |
+| `k8s.privileged_container` | checkov | CRITICAL | ISMS-2.6.2, ISMS-2.5.5, EFT-SEC-01 |
+| `container.run_as_root` | checkov/trivy | HIGH | ISMS-2.5.5, EFT-SEC-01 |
+| `container.critical_cve` | trivy | CRITICAL | ISMS-2.11.2, ISMS-2.10.9, EFT-SEC-06 |
+| `k8s.missing_network_policy` | checkov | HIGH | ISMS-2.6.1, EFT-SEC-05 |
+| `k8s.exposed_nodeport` | checkov | HIGH | ISMS-2.6.1, EFT-SEC-01 |
 
 ---
 
@@ -71,14 +73,14 @@ generate_compliance_report → SAMPLE_AUDIT_REPORT.md (Badge + Lab format)
 
 **Before (단순 매핑)**:
 ```
-ISMS-2.10.1 개인정보 수집·이용 — HIGH
+ISMS-3.2.3 개인정보 표시제한 — HIGH
 ```
 
 **After (Lab 수준 Lookup)**:
 
 ```json
 {
-  "control_id": "ISMS-2.10.1",
+  "control_id": "ISMS-3.2.3",
   "checklist_question": "개인정보는 수집·이용 목적에 필요한 최소한의 범위 내에서 처리하고 있는가?",
   "compliance_status": "미흡",
   "deficiency_reason": "로그 내 PII(주민등록번호) 평문 저장",

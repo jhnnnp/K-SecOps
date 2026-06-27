@@ -6,15 +6,15 @@
 
 | # | 파일 | 취약점 | 기대 Tool | 규정 매핑 |
 |---|------|--------|-----------|-----------|
-| 1 | `docker/Dockerfile.insecure` | USER root, outdated base | `scan_infrastructure` (Trivy) | ISMS-2.5.2, container.run_as_root |
-| 2 | `k8s/deployment-vulnerable.yaml` | privileged: true, hostPath | `scan_infrastructure` (Checkov) | ISMS-2.7.2, k8s.privileged_container |
-| 3 | `k8s/service-nodeport.yaml` | NodePort 노출 | `scan_infrastructure` (Checkov) | ISMS-2.7.1, k8s.exposed_nodeport |
-| 4 | `logs/app.log` | PII 평문 (RRN, 계좌, 전화, 이메일) | `mask_pii` | ISMS-2.10.1, EFT-SEC-08 |
-| 5 | `.env.leaked` | AWS Key, API Key, GitHub PAT, JWT, DB URL, Slack webhook | `audit_secrets` | ISMS-2.9.2, EFT-SEC-04 |
-| 6 | `deps/requirements.txt` | Known HIGH/CRITICAL CVEs (urllib3 pin) | `scan_dependencies` | ISMS-2.8.1 |
+| 1 | `docker/Dockerfile.insecure` | USER root, outdated base | `scan_infrastructure` (Trivy) | ISMS-2.5.5, container.run_as_root |
+| 2 | `k8s/deployment-vulnerable.yaml` | privileged (CKV_K8S_16), root (CKV_K8S_23), hostPath | `scan_infrastructure` (Checkov) | ISMS-2.5.5, k8s.privileged_container |
+| 3 | `k8s/service-nodeport.yaml` | NodePort 외부 노출 (CIS/K8s hardening) | `scan_infrastructure` (Checkov) | ISMS-2.6.1 |
+| 4 | `logs/app.log` | PII 평문 (RRN, 계좌, 전화, 이메일) | `mask_pii` | ISMS-3.2.3, EFT-SEC-08 |
+| 5 | `.env.leaked` | AWS Key, API Key, GitHub PAT, JWT, DB URL, Slack webhook | `audit_secrets` | ISMS-2.7.2, EFT-SEC-04 |
+| 6 | `deps/requirements.txt` | Known HIGH/CRITICAL CVEs (urllib3 pin) | `scan_dependencies` | ISMS-2.11.2 |
 | 7 | `code/unsafe_sast.py` | eval(), exec(), os.system, pickle.loads, shell=True | `audit_sast` | EFT-SEC-05 |
 | 8 | `code/banking_api.py` | SQLi, SSRF, weak crypto, pickle, PII logging | `audit_sast` (Semgrep) | EFT-SEC-05 |
-| 9 | `terraform/s3-insecure.tf` | public S3 ACL, open SG, no PAB | `scan_infrastructure` (Checkov) | ISMS-2.7.1 |
+| 9 | `terraform/s3-insecure.tf` | public S3 ACL, open SG, no PAB | `scan_infrastructure` (Checkov) | ISMS-2.6.1 |
 
 ## Quick verify
 

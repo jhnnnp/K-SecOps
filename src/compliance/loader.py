@@ -25,11 +25,19 @@ def load_eft_controls() -> dict[str, dict[str, Any]]:
     return {item["control_id"]: item for item in payload["controls"]}
 
 
+@lru_cache(maxsize=1)
+def load_pipa_controls() -> dict[str, dict[str, Any]]:
+    payload = json.loads((COMPLIANCE_DIR / "pipa_controls.json").read_text(encoding="utf-8"))
+    return {item["control_id"]: item for item in payload["controls"]}
+
+
 def get_control(control_id: str) -> dict[str, Any] | None:
     if control_id.startswith("ISMS-"):
         return load_isms_controls().get(control_id)
     if control_id.startswith("EFT-"):
         return load_eft_controls().get(control_id)
+    if control_id.startswith("PIPA-"):
+        return load_pipa_controls().get(control_id)
     return None
 
 

@@ -37,7 +37,7 @@
 | Agentic AI | 6 MCP Tools, `docs/AGENT_PROMPT.md` workflow | Cursor one-line prompt |
 | Zero Trust | MCP strict sandbox + CI repo-wide secret gate | `SECOPS_REPO_SCAN`, `config/secops-baseline.json` |
 | 전자금융감독규정 | `eft_controls.json`, `finding_rules.json` | EFT-SEC-01 AWS/S3 mapping |
-| ISMS-P | `isms_p_controls.json`, 101 Lab fields | ISMS-2.7.1 S3, ISMS-2.5.1 IAM |
+| ISMS-P | `isms_p_controls.json`, 공식 2022 통제번호 | ISMS-2.6.1 S3, ISMS-2.5.1 IAM |
 | E2EE / 시크릿 (우대) | `audit_secrets`, OPAQUE checklist in spec | `.env.leaked` 탐지 |
 | RAG / 문서 (우대) | JSON lookup now, RAG extension in PROJECT_SPEC Post-MVP | schema.json 101 expand |
 

@@ -22,4 +22,4 @@ def test_parse_checkov_fixture():
     findings = parse_checkov_report(payload)
     assert len(findings) == 2
     assert any(item.finding_type == "k8s.privileged_container" for item in findings)
-    assert any(item.finding_type == "k8s.exposed_nodeport" for item in findings)
+    assert any(item.finding_type == "k8s.root_container" for item in findings)

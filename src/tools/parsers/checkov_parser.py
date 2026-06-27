@@ -4,13 +4,16 @@ from tools.models import Finding
 from tools.parsers.trivy_parser import _normalize_severity
 
 CHECKOV_FINDING_TYPES: dict[str, str] = {
-    "CKV_K8S_16": "container.run_as_root",
-    "CKV_K8S_20": "k8s.missing_network_policy",
-    "CKV_K8S_23": "k8s.privileged_container",
-    "CKV_K8S_28": "container.run_as_root",
-    "CKV_K8S_29": "k8s.privileged_container",
-    "CKV_K8S_38": "k8s.exposed_nodeport",
-    "CKV_K8S_22": "k8s.exposed_nodeport",
+    # Official names: https://www.checkov.io/5.Policy%20Index/kubernetes.html
+    "CKV_K8S_16": "k8s.privileged_container",
+    "CKV_K8S_20": "k8s.allow_privilege_escalation",
+    "CKV_K8S_23": "k8s.root_container",
+    "CKV_K8S_28": "k8s.net_raw_capability",
+    "CKV_K8S_29": "k8s.missing_security_context",
+    "CKV_K8S_38": "k8s.automount_sa_token",
+    "CKV_K8S_22": "k8s.read_only_rootfs",
+    "CKV_AWS_20": "aws.s3_public_acl",
+    "CKV_AWS_53": "aws.s3_block_public_acls",
     "CKV_DOCKER_3": "container.run_as_root",
     "CKV_DOCKER_2": "container.run_as_root",
 }

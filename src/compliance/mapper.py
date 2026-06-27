@@ -176,7 +176,7 @@ def _violations_from_rule(
                 control_id=control_id,
                 framework=control["framework"],
                 control_title=control["title"],
-                category=control["category"],
+                category=control.get("category") or control.get("domain", ""),
                 checklist_question=control["checklist_question"],
                 compliance_status=deficiency["compliance_status"],
                 deficiency_reason=deficiency["deficiency_reason"],

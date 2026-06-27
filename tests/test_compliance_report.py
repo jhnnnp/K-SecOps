@@ -11,10 +11,10 @@ def test_report_contains_badges_and_lab_fields():
         severity="CRITICAL",
         resource="dummy-infra/.env.leaked",
         scanner="audit_secrets",
-        control_id="ISMS-2.9.2",
+        control_id="ISMS-2.7.2",
         framework="ISMS-P",
         control_title="암호키 관리",
-        category="2.9. 암호화",
+        category="2.7. 암호화",
         checklist_question="암호키는 생성·보관·폐기 등 생명주기 전반에 걸쳐 안전하게 관리되고 있는가?",
         compliance_status="미흡",
         deficiency_reason="암호키( AWS Access Key ) 평문 저장·노출",
@@ -54,5 +54,5 @@ def test_generate_compliance_report_e2e(tmp_path, monkeypatch):
 
     report_text = (PROJECT_ROOT / output).read_text(encoding="utf-8")
     assert "# Security Audit Report" in report_text
-    assert "ISMS-2.9.2" in report_text or "ISMS-2.10.1" in report_text
+    assert "ISMS-2.7.2" in report_text or "ISMS-3.2.3" in report_text
     assert "img.shields.io" in report_text

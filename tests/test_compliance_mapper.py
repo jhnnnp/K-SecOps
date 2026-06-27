@@ -30,7 +30,7 @@ def test_maps_pii_to_lab_violations():
         pii_findings=[{"type": "KR_RRN", "count": 1, "sample_locations": [2]}],
     )
     violations = build_violations(inputs)
-    assert any(v.control_id == "ISMS-2.10.1" for v in violations)
+    assert any(v.control_id == "ISMS-3.2.3" for v in violations)
     assert any("mask_pii" in v.tool_reference for v in violations)
 
 
@@ -53,7 +53,7 @@ def test_maps_aws_to_lab_violations():
         ],
     )
     violations = build_violations(inputs)
-    assert any(v.control_id == "ISMS-2.7.1" for v in violations)
+    assert any(v.control_id == "ISMS-2.6.1" for v in violations)
     assert any("audit_aws" in v.tool_reference for v in violations)
 
 
@@ -80,5 +80,5 @@ def test_dedupes_same_control_and_resource():
         ],
     )
     violations = build_violations(inputs)
-    isms_292 = [v for v in violations if v.control_id == "ISMS-2.9.2"]
-    assert len(isms_292) == 1
+    isms_272 = [v for v in violations if v.control_id == "ISMS-2.7.2"]
+    assert len(isms_272) == 1

@@ -10,7 +10,7 @@
       "scanner_sources": ["mask_pii"],
       "controls": [
         {
-          "control_id": "ISMS-2.10.1",
+          "control_id": "ISMS-3.2.3",
           "deficiency": {
             "compliance_status": "미흡",
             "deficiency_reason": "로그 내 PII(주민등록번호) 평문 저장",
@@ -53,7 +53,7 @@
       "scanner_sources": ["mask_pii"],
       "controls": [
         {
-          "control_id": "ISMS-2.10.1",
+          "control_id": "ISMS-3.2.3",
           "deficiency": {
             "compliance_status": "미흡",
             "deficiency_reason": "로그 내 금융 식별정보(계좌번호) 평문 저장",
@@ -84,7 +84,7 @@
       "scanner_sources": ["audit_secrets"],
       "controls": [
         {
-          "control_id": "ISMS-2.9.2",
+          "control_id": "ISMS-2.7.2",
           "deficiency": {
             "compliance_status": "미흡",
             "deficiency_reason": "암호키( AWS Access Key ) 평문 저장·노출",
@@ -96,7 +96,7 @@
           }
         },
         {
-          "control_id": "ISMS-2.9.1",
+          "control_id": "ISMS-2.7.1",
           "deficiency": {
             "compliance_status": "미흡",
             "deficiency_reason": "중요 정보 암호화·보호조치 미적용",
@@ -158,7 +158,7 @@
       "scanner_sources": ["checkov"],
       "controls": [
         {
-          "control_id": "ISMS-2.7.2",
+          "control_id": "ISMS-2.6.2",
           "deficiency": {
             "compliance_status": "미흡",
             "deficiency_reason": "컨테이너 privileged 모드 사용 — 호스트 커널 접근 가능",
@@ -170,7 +170,7 @@
           }
         },
         {
-          "control_id": "ISMS-2.5.2",
+          "control_id": "ISMS-2.5.5",
           "deficiency": {
             "compliance_status": "미흡",
             "deficiency_reason": "특권(Privileged) 워크로드 미통제",
@@ -201,7 +201,7 @@
       "scanner_sources": ["checkov", "trivy"],
       "controls": [
         {
-          "control_id": "ISMS-2.5.2",
+          "control_id": "ISMS-2.5.5",
           "deficiency": {
             "compliance_status": "미흡",
             "deficiency_reason": "컨테이너 root(UID 0) 실행",
@@ -232,7 +232,7 @@
       "scanner_sources": ["trivy"],
       "controls": [
         {
-          "control_id": "ISMS-2.11.1",
+          "control_id": "ISMS-2.11.2",
           "deficiency": {
             "compliance_status": "미흡",
             "deficiency_reason": "Critical CVE 미패치 — 보안사고 예방 조치 미흡",
@@ -244,7 +244,7 @@
           }
         },
         {
-          "control_id": "ISMS-2.7.3",
+          "control_id": "ISMS-2.10.9",
           "deficiency": {
             "compliance_status": "미흡",
             "deficiency_reason": "악성코드·취약점 통제 — OS 패키지 취약",
@@ -275,7 +275,7 @@
       "scanner_sources": ["checkov"],
       "controls": [
         {
-          "control_id": "ISMS-2.7.1",
+          "control_id": "ISMS-2.6.1",
           "deficiency": {
             "compliance_status": "미흡",
             "deficiency_reason": "Kubernetes NetworkPolicy 미적용 — default allow",
@@ -306,7 +306,7 @@
       "scanner_sources": ["checkov"],
       "controls": [
         {
-          "control_id": "ISMS-2.7.1",
+          "control_id": "ISMS-2.6.1",
           "deficiency": {
             "compliance_status": "미흡",
             "deficiency_reason": "불필요한 NodePort Service 노출",
@@ -337,7 +337,7 @@
       "scanner_sources": ["audit_aws"],
       "controls": [
         {
-          "control_id": "ISMS-2.7.1",
+          "control_id": "ISMS-2.6.1",
           "deficiency": {
             "compliance_status": "미흡",
             "deficiency_reason": "S3 버킷 퍼블릭 접근 허용",
@@ -399,7 +399,7 @@
       "scanner_sources": ["audit_secrets"],
       "controls": [
         {
-          "control_id": "ISMS-2.9.2",
+          "control_id": "ISMS-2.7.2",
           "deficiency": {
             "compliance_status": "미흡",
             "deficiency_reason": "GitHub PAT 평문 저장·노출",
@@ -418,7 +418,7 @@
       "scanner_sources": ["audit_secrets"],
       "controls": [
         {
-          "control_id": "ISMS-2.9.2",
+          "control_id": "ISMS-2.7.2",
           "deficiency": {
             "compliance_status": "미흡",
             "deficiency_reason": "DB 접속 URL·비밀번호 평문 노출",
@@ -437,7 +437,7 @@
       "scanner_sources": ["scan_dependencies"],
       "controls": [
         {
-          "control_id": "ISMS-2.8.1",
+          "control_id": "ISMS-2.11.2",
           "deficiency": {
             "compliance_status": "미흡",
             "deficiency_reason": "애플리케이션 의존성 HIGH CVE 미패치",
@@ -456,7 +456,7 @@
       "scanner_sources": ["scan_dependencies"],
       "controls": [
         {
-          "control_id": "ISMS-2.8.1",
+          "control_id": "ISMS-2.11.2",
           "deficiency": {
             "compliance_status": "미흡",
             "deficiency_reason": "애플리케이션 의존성 CRITICAL CVE 미패치",

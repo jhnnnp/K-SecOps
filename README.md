@@ -11,7 +11,7 @@
 
 > **Deterministic Python DevSecOps pipeline** — Semgrep SAST, Trivy SCA/infra, Checkov, boto3 scan, ISMS-P·전자금융 Lab report, PR merge gate. MCP is the optional agent interface, not the security engine.
 
-[Sample Report](./reports/SAMPLE_AUDIT_REPORT.md) · [Repository](https://github.com/jhnnnp/K-SecOps) · [CI Evidence Guide](./docs/CI_EVIDENCE.md) · [AWS Live Scan](./docs/AWS_LIVE_SCAN.md) · [JD Mapping](./docs/JD_MAPPING.md)
+[Sample Report](./reports/SAMPLE_AUDIT_REPORT.md) · [Repository](https://github.com/jhnnnp/K-SecOps) · [Validation Sources](./docs/VALIDATION_SOURCES.md) · [CI Evidence Guide](./docs/CI_EVIDENCE.md) · [AWS Live Scan](./docs/AWS_LIVE_SCAN.md) · [JD Mapping](./docs/JD_MAPPING.md)
 
 ---
 
