@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import sys
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
