@@ -26,9 +26,12 @@ def scan_dependencies(
     strict: bool | None = None,
 ) -> ScanDependenciesResult:
     """
-    Scan Python dependency manifests for known CVEs (Trivy vuln scanner).
+    SCA (Software Composition Analysis) via Trivy vulnerability scanner.
 
-    Scans directories containing requirements.txt or individual manifest files.
+    Queries the NVD-backed vulnerability database for pinned package versions
+    in requirements.txt (and related manifests). HIGH/CRITICAL CVEs in the
+    application manifest block the CI gate; fixture CVEs under dummy-infra/deps/
+    are regression targets only.
     """
     if strict is None:
         from tools.sandbox import is_repo_scan_mode

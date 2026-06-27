@@ -9,7 +9,7 @@
 ![Go](https://img.shields.io/badge/Go-1.22-alert_worker-00ADD8?style=flat-square&logo=go&logoColor=white)
 ![CI](https://img.shields.io/badge/CI-SecOps_Gate-2088FF?style=flat-square&logo=githubactions&logoColor=white)
 
-> **Deterministic Python DevSecOps pipeline** — Trivy/Checkov/boto3 scan, ISMS-P·전자금융 Lab report, PR merge gate. MCP is the optional agent interface, not the security engine.
+> **Deterministic Python DevSecOps pipeline** — Semgrep SAST, Trivy SCA/infra, Checkov, boto3 scan, ISMS-P·전자금융 Lab report, PR merge gate. MCP is the optional agent interface, not the security engine.
 
 [Sample Report](./reports/SAMPLE_AUDIT_REPORT.md) · [Repository](https://github.com/jhnnnp/K-SecOps) · [CI Evidence Guide](./docs/CI_EVIDENCE.md) · [AWS Live Scan](./docs/AWS_LIVE_SCAN.md) · [JD Mapping](./docs/JD_MAPPING.md)
 
@@ -55,8 +55,8 @@ flowchart TB
 | **A** | `audit_secrets` | `.` (entire repo) | `src/` etc. secret → **immediate FAIL** |
 | **B** | `scan_infrastructure` | `dummy-infra`, `Dockerfile` | CRITICAL in fixture → baseline only |
 | **C** | `audit_aws_config` | `dummy-infra/aws` | policy JSON + optional boto3 live |
-| **D** | `audit_sast` | `.` (src + fixtures) | `src/` unsafe pattern → **immediate FAIL** |
-| **E** | `scan_dependencies` | `requirements.txt`, `dummy-infra/deps` | app manifest HIGH+ CVE → **FAIL** |
+| **D** | `audit_sast` (Semgrep / regex) | `.` (src + fixtures) | `src/` SAST finding → **immediate FAIL** |
+| **E** | `scan_dependencies` (Trivy SCA) | `requirements.txt`, `dummy-infra/deps` | app manifest HIGH+ CVE (NVD) → **FAIL** |
 
 - **MCP agent**: strict sandbox — `dummy-infra/`, `reports/` only
 - **CI**: `SECOPS_REPO_SCAN=1` — secrets scan real application code
@@ -195,6 +195,8 @@ flowchart LR
 | `mask_pii` | KR_RRN, KR_PHONE, ACCOUNT, EMAIL |
 | `scan_infrastructure` | Trivy + Checkov |
 | `audit_secrets` | Secrets (MCP: sandbox / CI: repo-wide) |
+| `audit_sast` | Semgrep OWASP rules (CI) / regex fallback (local) |
+| `scan_dependencies` | Trivy SCA — NVD-backed CVE scan on manifests |
 | `audit_aws_config` | IAM/S3 policy + boto3 live |
 | `generate_compliance_report` | Lab-format Markdown |
 
@@ -208,6 +210,7 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 pip install -r requirements-dev.txt   # tests
 brew install trivy checkov
+pip install semgrep   # optional locally; CI installs automatically
 
 PYTHONPATH=src python3 scripts/run_demo.py
 PYTHONPATH=src python3 scripts/ci_gate.py
@@ -245,9 +248,19 @@ CI runs the worker automatically when the gate **FAILs** (requires `SECOPS_ALERT
 
 **Current scope (by design):**
 
+- SAST: CI uses **Semgrep** (`--config auto`, OWASP registry rules); local dev falls back to regex when Semgrep is not installed (`SECOPS_SAST_ENGINE=auto`).
+- SCA: **Trivy vuln scanner** queries NVD for pinned dependency versions (`scan_dependencies`).
 - Infrastructure scan uses **controlled fixture** (`dummy-infra`) + project `Dockerfile` to limit false positives and keep CI deterministic.
 - AWS live scan is **opt-in** (`SECOPS_AWS_LIVE=1`); CI defaults to local policy JSON.
 - ISMS-P coverage: ~25 controls mapped; schema supports 101 bulk import.
+
+**Environment (CI gate):**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SECOPS_SAST_ENGINE` | `auto` | `semgrep` / `regex` / `both` — CI sets `semgrep` |
+| `SECOPS_REPO_SCAN` | `0` (CI: `1`) | Repo-wide secret scan |
+| `SECOPS_DEPS_TARGETS` | `requirements.txt,dummy-infra/deps` | Trivy SCA manifests |
 
 **Roadmap:**
 
@@ -255,6 +268,7 @@ CI runs the worker automatically when the gate **FAILs** (requires `SECOPS_ALERT
 |-------|------|
 | Done | Go alert-worker + webhook on gate FAIL |
 | Done | AWS live boto3 S3 + IAM scan (`source=boto3`) |
+| Done | Semgrep SAST engine + Trivy SCA labeling in CI gate |
 | Now | GitHub PR PASSED/FAILED evidence (auto-sync) |
 | Post-MVP | Full 101-control import, OPA/K8s admission |
 

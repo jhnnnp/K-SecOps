@@ -24,8 +24,8 @@
 | Track | Target | Gate |
 |-------|--------|------|
 | Secrets (`audit_secrets`) | `.` 전역 (`src/` 포함) | `dummy-infra/` 외 시크릿 → **무조건 FAIL** |
-| SAST (`audit_sast`) | `.` (`src/` + fixtures) | `src/` eval/shell=True 등 → **무조건 FAIL** |
-| Dependencies (`scan_dependencies`) | `requirements.txt`, `dummy-infra/deps` | root manifest HIGH+ CVE → **FAIL** |
+| SAST (`audit_sast`) | `.` (`src/` + fixtures) | CI: **Semgrep** `--config auto` (OWASP rules); local: regex fallback |
+| SCA (`scan_dependencies`) | `requirements.txt`, `dummy-infra/deps` | **Trivy vuln scanner** (NVD DB) — root manifest HIGH+ CVE → **FAIL** |
 | Infra (`scan_infrastructure`) | `dummy-infra`, `Dockerfile` | `dummy-infra/` CRITICAL만 baseline 회귀 검사 |
 
 > "시크릿은 레포 전체를 봅니다. 인프라는 회귀 테스트 픽스처 + 자기 Dockerfile로 엔진을 검증합니다."

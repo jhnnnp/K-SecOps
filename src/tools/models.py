@@ -67,6 +67,8 @@ class AuditSastResult(BaseModel):
     findings: list[SastFinding]
     files_scanned: int
     target_path: str
+    engine: str = "regex"
+    errors: list[ScannerError] = Field(default_factory=list)
 
 
 class ScanDependenciesResult(BaseModel):

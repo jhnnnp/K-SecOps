@@ -28,6 +28,9 @@ jobs:
       - name: Install Checkov
         run: pip install checkov
 
+      - name: Install Semgrep
+        run: pip install semgrep
+
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
@@ -41,6 +44,7 @@ jobs:
           SECOPS_SECRETS_TARGET: "."
           SECOPS_INFRA_TARGETS: "dummy-infra,Dockerfile"
           SECOPS_TARGET: dummy-infra
+          SECOPS_SAST_ENGINE: "semgrep"
           SECOPS_AWS_LIVE: "0"
         run: python scripts/ci_gate.py
 

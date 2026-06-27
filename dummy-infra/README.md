@@ -12,7 +12,7 @@
 | 4 | `logs/app.log` | PII 평문 (RRN, 계좌, 전화, 이메일) | `mask_pii` | ISMS-2.10.1, EFT-SEC-08 |
 | 5 | `.env.leaked` | AWS Key, API Key, GitHub PAT, JWT, DB URL, Slack webhook | `audit_secrets` | ISMS-2.9.2, EFT-SEC-04 |
 | 6 | `deps/requirements.txt` | Known HIGH/CRITICAL CVEs (urllib3 pin) | `scan_dependencies` | ISMS-2.8.1 |
-| 7 | `code/unsafe_sast.py` | eval(), shell=True | `audit_sast` | EFT-SEC-05 |
+| 7 | `code/unsafe_sast.py` | eval(), exec(), os.system, pickle.loads, shell=True | `audit_sast` | EFT-SEC-05 |
 
 ## Quick verify
 

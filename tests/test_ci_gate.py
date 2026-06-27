@@ -30,7 +30,7 @@ def test_ci_gate_passes_on_baseline_dummy_infra():
     result = subprocess.run(
         [sys.executable, str(root / "scripts" / "ci_gate.py")],
         cwd=root,
-        env={**dict(__import__("os").environ), "PYTHONPATH": "src", "SECOPS_AWS_LIVE": "0"},
+        env={**dict(__import__("os").environ), "PYTHONPATH": "src", "SECOPS_AWS_LIVE": "0", "SECOPS_SAST_ENGINE": "regex"},
         capture_output=True,
         text=True,
         timeout=240,
@@ -39,7 +39,7 @@ def test_ci_gate_passes_on_baseline_dummy_infra():
     assert "DevSecOps CI Gate: PASSED" in result.stdout
     assert "Multi-Track Scope" in result.stdout
     assert "SAST findings" in result.stdout
-    assert "Dependency CVEs" in result.stdout
+    assert "SCA CVEs" in result.stdout
 
 
 def test_gate_fails_on_secret_outside_fixture():
@@ -66,6 +66,33 @@ def test_gate_fails_on_secret_outside_fixture():
     ci_gate._evaluate_gate(gate, baseline, scan, secrets, aws, deps, sast)
     assert gate.passed is False
     assert any("application code" in reason for reason in gate.reasons)
+
+
+def test_gate_fails_on_os_system_in_application_code():
+    ci_gate = _load_ci_gate_module()
+    gate = ci_gate.GateResult()
+    baseline = _empty_baseline()
+    sast = AuditSastResult(
+        findings=[
+            SastFinding(
+                id="SAST-OS",
+                finding_type="sast.os_system",
+                resource="src/utils.py",
+                line=3,
+                severity="CRITICAL",
+                title="os.system",
+                description='os.system("rm -rf /")',
+            )
+        ],
+        files_scanned=1,
+        target_path=".",
+    )
+    scan, aws, deps, _ = _empty_scan_bundle()
+    secrets = AuditSecretsResult(findings=[], files_scanned=0, target_path=".")
+
+    ci_gate._evaluate_gate(gate, baseline, scan, secrets, aws, deps, sast)
+    assert gate.passed is False
+    assert any("sast.os_system" in reason for reason in gate.reasons)
 
 
 def test_gate_fails_on_sast_in_application_code():

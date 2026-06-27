@@ -128,6 +128,10 @@ def _evaluate_gate(result: GateResult, baseline: dict, scan, secrets, aws, deps,
         result.passed = False
         result.reasons.append(f"Dependency scanner errors: {[e.scanner for e in deps.errors]}")
 
+    if baseline.get("fail_on_scanner_errors") and sast.errors:
+        result.passed = False
+        result.reasons.append(f"SAST scanner errors: {[e.scanner for e in sast.errors]}")
+
     allowed_keys = set(baseline.get("allowed_finding_keys", []))
     fixture_prefixes = baseline.get("fixture_secret_prefixes", ["dummy-infra/"])
     infra_baseline_prefixes = baseline.get("infra_baseline_prefixes", ["dummy-infra/"])
@@ -223,15 +227,15 @@ def _build_summary(
         "",
         "## Multi-Track Scope",
         f"- Secrets scan (repo-wide): `{secrets_target}`",
-        f"- SAST scan: `{sast_target}`",
-        f"- Dependency CVE scan: `{', '.join(deps_targets)}`",
+        f"- SAST scan (`{sast.engine}`): `{sast_target}`",
+        f"- SCA / Dependency CVE scan (Trivy vuln DB): `{', '.join(deps_targets)}`",
         f"- Infrastructure scan (fixture + self): `{', '.join(infra_targets)}`",
         "",
         "## Scan Summary",
         f"- Infrastructure findings: **{len(scan.findings)}** (critical={scan.summary.critical}, high={scan.summary.high})",
         f"- Secret findings: **{len(secrets.findings)}** (application code: **{len(app_secrets)}**)",
-        f"- SAST findings: **{len(sast.findings)}** (application code: **{len(app_sast)}**)",
-        f"- Dependency CVEs (HIGH+): **{len([d for d in deps.findings if d.severity in {'CRITICAL', 'HIGH'}])}** (app manifest: **{len(app_deps)}**)",
+        f"- SAST findings ({sast.engine}): **{len(sast.findings)}** (application code: **{len(app_sast)}**)",
+        f"- SCA CVEs — Trivy HIGH+ (NVD): **{len([d for d in deps.findings if d.severity in {'CRITICAL', 'HIGH'}])}** (app manifest: **{len(app_deps)}**)",
         f"- AWS config findings: **{len(aws.findings)}** (live={aws.live_scan})",
         f"- Compliance violations: **{report.summary.total_violations}**",
         f"- Report: `{report.report_path}`",

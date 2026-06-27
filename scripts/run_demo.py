@@ -33,11 +33,11 @@ def main() -> int:
     print(f"[audit_secrets] findings={len(secrets.findings)} files={secrets.files_scanned}")
 
     sast = audit_sast(target, repo_wide=False)
-    print(f"[audit_sast] findings={len(sast.findings)} files={sast.files_scanned}")
+    print(f"[audit_sast] engine={sast.engine} findings={len(sast.findings)} files={sast.files_scanned}")
 
     deps = scan_dependencies(["dummy-infra/deps"], strict=True)
     dep_high = len([d for d in deps.findings if d.severity in {"CRITICAL", "HIGH"}])
-    print(f"[scan_dependencies] cve_high_plus={dep_high} errors={len(deps.errors)}")
+    print(f"[scan_dependencies/sca] trivy_nvd cve_high_plus={dep_high} errors={len(deps.errors)}")
 
     aws = audit_aws_config(target)
     print(f"[audit_aws] findings={len(aws.findings)} live={aws.live_scan}")

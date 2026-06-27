@@ -506,6 +506,82 @@
           }
         }
       ]
+    },
+    {
+      "finding_type": "sast.os_system",
+      "default_severity": "CRITICAL",
+      "scanner_sources": ["audit_sast"],
+      "controls": [
+        {
+          "control_id": "EFT-SEC-05",
+          "deficiency": {
+            "compliance_status": "미흡",
+            "deficiency_reason": "os.system() — OS command injection sink",
+            "deficiency_detail_template": "{resource}:{line}에서 os.system() 호출 탐지.",
+            "recommended_action": "subprocess.run(shell=False, argv list)로 대체, 입력값 검증",
+            "action_priority": "즉시",
+            "evidence_required": "audit_sast 재스캔 0건",
+            "tool_reference": "audit_sast"
+          }
+        }
+      ]
+    },
+    {
+      "finding_type": "sast.unsafe_pickle",
+      "default_severity": "CRITICAL",
+      "scanner_sources": ["audit_sast"],
+      "controls": [
+        {
+          "control_id": "EFT-SEC-05",
+          "deficiency": {
+            "compliance_status": "미흡",
+            "deficiency_reason": "pickle.loads() — unsafe deserialization (RCE)",
+            "deficiency_detail_template": "{resource}:{line}에서 pickle.loads() 탐지.",
+            "recommended_action": "JSON/msgpack 등 안전한 직렬화 포맷 사용, 신뢰 경계 밖 데이터 역직렬화 금지",
+            "action_priority": "즉시",
+            "evidence_required": "audit_sast 재스캔 0건",
+            "tool_reference": "audit_sast"
+          }
+        }
+      ]
+    },
+    {
+      "finding_type": "sast.unsafe_exec",
+      "default_severity": "CRITICAL",
+      "scanner_sources": ["audit_sast"],
+      "controls": [
+        {
+          "control_id": "EFT-SEC-05",
+          "deficiency": {
+            "compliance_status": "미흡",
+            "deficiency_reason": "exec() — dynamic code execution",
+            "deficiency_detail_template": "{resource}:{line}에서 exec() 호출 탐지.",
+            "recommended_action": "exec/eval 제거, allowlist 기반 파서로 대체",
+            "action_priority": "즉시",
+            "evidence_required": "audit_sast 재스캔 0건",
+            "tool_reference": "audit_sast"
+          }
+        }
+      ]
+    },
+    {
+      "finding_type": "sast.semgrep.generic",
+      "default_severity": "HIGH",
+      "scanner_sources": ["audit_sast"],
+      "controls": [
+        {
+          "control_id": "EFT-SEC-05",
+          "deficiency": {
+            "compliance_status": "미흡",
+            "deficiency_reason": "Semgrep OWASP rule — static analysis finding",
+            "deficiency_detail_template": "{resource}:{line}에서 Semgrep 룰 위반 탐지.",
+            "recommended_action": "Semgrep check_id 기준으로 코드 수정 또는 baseline/제외 정책 검토",
+            "action_priority": "즉시",
+            "evidence_required": "audit_sast(Semgrep) 재스캔 0건",
+            "tool_reference": "audit_sast (semgrep)"
+          }
+        }
+      ]
     }
   ]
 }
