@@ -3,7 +3,16 @@ import subprocess
 import sys
 from pathlib import Path
 
-from tools.models import AuditAwsResult, AuditSecretsResult, ScanInfrastructureResult, SecretFinding, summarize_findings
+from tools.models import (
+    AuditAwsResult,
+    AuditSastResult,
+    AuditSecretsResult,
+    SastFinding,
+    ScanDependenciesResult,
+    ScanInfrastructureResult,
+    SecretFinding,
+    summarize_findings,
+)
 
 
 def _load_ci_gate_module():
@@ -24,23 +33,19 @@ def test_ci_gate_passes_on_baseline_dummy_infra():
         env={**dict(__import__("os").environ), "PYTHONPATH": "src", "SECOPS_AWS_LIVE": "0"},
         capture_output=True,
         text=True,
-        timeout=180,
+        timeout=240,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert "DevSecOps CI Gate: PASSED" in result.stdout
-    assert "Dual-Target Scope" in result.stdout
+    assert "Multi-Track Scope" in result.stdout
+    assert "SAST findings" in result.stdout
+    assert "Dependency CVEs" in result.stdout
 
 
 def test_gate_fails_on_secret_outside_fixture():
     ci_gate = _load_ci_gate_module()
     gate = ci_gate.GateResult()
-    baseline = {
-        "fixture_secret_prefixes": ["dummy-infra/"],
-        "infra_baseline_prefixes": ["dummy-infra/"],
-        "allowed_finding_keys": [],
-        "fail_on_scan_critical": True,
-        "fail_on_scanner_errors": True,
-    }
+    baseline = _empty_baseline()
     secrets = AuditSecretsResult(
         findings=[
             SecretFinding(
@@ -56,6 +61,54 @@ def test_gate_fails_on_secret_outside_fixture():
         files_scanned=1,
         target_path=".",
     )
+    scan, aws, deps, sast = _empty_scan_bundle()
+
+    ci_gate._evaluate_gate(gate, baseline, scan, secrets, aws, deps, sast)
+    assert gate.passed is False
+    assert any("application code" in reason for reason in gate.reasons)
+
+
+def test_gate_fails_on_sast_in_application_code():
+    ci_gate = _load_ci_gate_module()
+    gate = ci_gate.GateResult()
+    baseline = _empty_baseline()
+    sast = AuditSastResult(
+        findings=[
+            SastFinding(
+                id="SAST-1",
+                finding_type="sast.unsafe_eval",
+                resource="src/main.py",
+                line=10,
+                severity="CRITICAL",
+                title="eval",
+                description="eval(x)",
+            )
+        ],
+        files_scanned=1,
+        target_path=".",
+    )
+    scan, aws, deps, _ = _empty_scan_bundle()
+    secrets = AuditSecretsResult(findings=[], files_scanned=0, target_path=".")
+
+    ci_gate._evaluate_gate(gate, baseline, scan, secrets, aws, deps, sast)
+    assert gate.passed is False
+    assert any("SAST in application code" in reason for reason in gate.reasons)
+
+
+def _empty_baseline() -> dict:
+    return {
+        "fixture_secret_prefixes": ["dummy-infra/"],
+        "sast_fixture_prefixes": ["dummy-infra/"],
+        "deps_fixture_prefixes": ["dummy-infra/deps/"],
+        "app_dependency_manifests": ["requirements.txt"],
+        "infra_baseline_prefixes": ["dummy-infra/"],
+        "allowed_finding_keys": [],
+        "fail_on_scan_critical": True,
+        "fail_on_scanner_errors": True,
+    }
+
+
+def _empty_scan_bundle():
     scan = ScanInfrastructureResult(
         findings=[],
         summary=summarize_findings([]),
@@ -64,7 +117,11 @@ def test_gate_fails_on_secret_outside_fixture():
         scanners_run=[],
     )
     aws = AuditAwsResult(findings=[], target_path="dummy-infra", live_scan=False, errors=[])
-
-    ci_gate._evaluate_gate(gate, baseline, scan, secrets, aws)
-    assert gate.passed is False
-    assert any("application code" in reason for reason in gate.reasons)
+    deps = ScanDependenciesResult(
+        findings=[],
+        summary=summarize_findings([]),
+        errors=[],
+        target_path="none",
+    )
+    sast = AuditSastResult(findings=[], files_scanned=0, target_path=".")
+    return scan, aws, deps, sast

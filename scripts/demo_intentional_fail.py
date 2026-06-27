@@ -9,7 +9,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from tools.models import AuditAwsResult, AuditSecretsResult, ScanInfrastructureResult, SecretFinding, summarize_findings
+from tools.models import (
+    AuditAwsResult,
+    AuditSastResult,
+    AuditSecretsResult,
+    ScanDependenciesResult,
+    ScanInfrastructureResult,
+    SecretFinding,
+    summarize_findings,
+)
 
 
 def main() -> int:
@@ -48,8 +56,15 @@ def main() -> int:
         scanners_run=[],
     )
     aws = AuditAwsResult(findings=[], target_path="dummy-infra", live_scan=False, errors=[])
+    deps = ScanDependenciesResult(
+        findings=[],
+        summary=summarize_findings([]),
+        errors=[],
+        target_path="none",
+    )
+    sast = AuditSastResult(findings=[], files_scanned=0, target_path=".")
 
-    ci_gate._evaluate_gate(gate, baseline, scan, secrets, aws)
+    ci_gate._evaluate_gate(gate, baseline, scan, secrets, aws, deps, sast)
 
     print("== Intentional Fail Demo (local simulation) ==")
     print(f"Gate passed: {gate.passed}")

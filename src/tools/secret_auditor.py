@@ -34,6 +34,32 @@ SECRET_PATTERNS: list[tuple[str, str, Pattern[str], str]] = [
         re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
         "CRITICAL",
     ),
+    (
+        "secret.github_pat",
+        "GitHub Personal Access Token",
+        re.compile(r"(ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,})"),
+        "CRITICAL",
+    ),
+    (
+        "secret.jwt",
+        "JSON Web Token",
+        re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"),
+        "HIGH",
+    ),
+    (
+        "secret.database_url",
+        "Database Connection URL with Credentials",
+        re.compile(
+            r"(?i)\b(?:postgres|postgresql|mysql|mongodb)(?:\+[a-z0-9]+)?://[^\s:@/]+:[^\s@/]+@[^\s/]+"
+        ),
+        "CRITICAL",
+    ),
+    (
+        "secret.slack_webhook",
+        "Slack Incoming Webhook URL",
+        re.compile(r"(?:https://)?hooks\.slack\.com/services/[A-Za-z0-9/_-]+"),
+        "HIGH",
+    ),
 ]
 
 IGNORE_DIR_NAMES = {

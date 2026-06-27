@@ -4,6 +4,28 @@
 
 ---
 
+## 번호로 실행 (추천)
+
+```bash
+python3 scripts/run_scenario.py
+```
+
+| 번호 | 시나리오 | GitHub 반응 |
+|------|----------|-------------|
+| 1 | Local demo report | 없음 (로컬 리포트만) |
+| 2 | Local CI gate | 없음 |
+| 3 | Local FAIL simulation | 없음 |
+| 4 | Local all (1+2+3) | 없음 |
+| 5 | PR PASS demo | Checks 초록 + PR 코멘트 |
+| 6 | PR FAIL demo | Checks 빨강 + merge 차단 |
+| 7 | Sync CI evidence | README 자동 갱신 |
+| 8 | Actions SecOps Gate | Actions 탭 실행 |
+| 9 | Actions Sync Evidence | Actions 탭 실행 |
+
+PR/Actions(5~9)는 `gh auth login` 필요. 미리 보기: `python3 scripts/run_scenario.py 6 --dry-run`
+
+---
+
 ## 사전 준비
 
 1. GitHub 레포지토리 생성 후 push

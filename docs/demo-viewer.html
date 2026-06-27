@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>K-SecOps 시나리오 데모</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --green: #3fb950;
+      --red: #f85149;
+      --blue: #58a6ff;
+      --orange: #d29922;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px;
+    }
+    h1 { font-size: 1.6rem; margin: 0 0 8px; }
+    .sub { color: var(--muted); margin-bottom: 24px; }
+    .steps { display: grid; gap: 16px; max-width: 960px; }
+    .step {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .step h2 {
+      margin: 0 0 12px;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+    }
+    .badge.scan { color: var(--blue); border-color: var(--blue); }
+    .badge.pass { color: var(--green); border-color: var(--green); }
+    .badge.fail { color: var(--red); border-color: var(--red); }
+    .flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin: 12px 0;
+      font-size: 0.9rem;
+    }
+    .flow span {
+      background: #21262d;
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .arrow { color: var(--muted); }
+    pre {
+      background: #010409;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      overflow-x: auto;
+      font-size: 0.82rem;
+      margin: 12px 0 0;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .metric {
+      background: #21262d;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+    .metric .num { font-size: 1.5rem; font-weight: 700; }
+    .metric .label { font-size: 0.75rem; color: var(--muted); }
+    .num.high { color: var(--orange); }
+    .num.crit { color: var(--red); }
+    .num.ok { color: var(--green); }
+    a { color: var(--blue); }
+    .result-box {
+      margin-top: 12px;
+      padding: 14px;
+      border-radius: 8px;
+      font-weight: 600;
+    }
+    .result-box.pass { background: rgba(63, 185, 80, 0.12); border: 1px solid var(--green); color: var(--green); }
+    .result-box.fail { background: rgba(248, 81, 73, 0.12); border: 1px solid var(--red); color: var(--red); }
+    .files { margin-top: 12px; font-size: 0.9rem; }
+    .files li { margin: 4px 0; }
+    code { background: #21262d; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+  </style>
+</head>
+<body>
+  <h1>K-SecOps — 시나리오 한눈에 보기</h1>
+  <p class="sub">시나리오 실행: <code>python3 scripts/run_scenario.py</code> (1=local, 5~6=PR, 8~9=Actions)</p>
+
+  <div class="steps">
+
+    <section class="step">
+      <h2><span class="badge scan">STEP 1</span> 검사 실행 (run_demo.py)</h2>
+      <p><code>dummy-infra</code> 폴더를 스캔해서 <strong>보안 진단서</strong>를 만듭니다.</p>
+      <div class="flow">
+        <span>dummy-infra 스캔</span>
+        <span class="arrow">→</span>
+        <span>취약점 44건</span>
+        <span class="arrow">→</span>
+        <span>시크릿 3건</span>
+        <span class="arrow">→</span>
+        <span>AWS 문제 2건</span>
+        <span class="arrow">→</span>
+        <span>리포트 생성</span>
+      </div>
+      <div class="metrics">
+        <div class="metric"><div class="num high">12</div><div class="label">High</div></div>
+        <div class="metric"><div class="num crit">13</div><div class="label">미흡 통제</div></div>
+        <div class="metric"><div class="num crit">19</div><div class="label">즉시 조치</div></div>
+      </div>
+      <div class="files">
+        <strong>지금 열 파일:</strong>
+        <ul>
+          <li><code>reports/SAMPLE_AUDIT_REPORT.md</code> — 최종 진단서 (표, ISMS-P 매핑)</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="step">
+      <h2><span class="badge pass">STEP 2</span> CI Gate 통과 (ci_gate.py)</h2>
+      <p>GitHub PR에 올렸을 때와 <strong>같은 검사</strong>를 로컬에서 돌린 결과입니다.</p>
+      <div class="result-box pass">DevSecOps CI Gate: PASSED</div>
+      <pre>Secrets scan: 전체 repo (.)     → src/에 키 없음 ✓
+Infra scan: dummy-infra + Dockerfile → 데모용 취약점은 baseline 허용 ✓
+AWS scan: 2건 발견 (데모 JSON, 허용됨)</pre>
+      <div class="files">
+        <ul>
+          <li><code>reports/CI_SUMMARY.md</code> — 합격 요약</li>
+          <li><code>reports/CI_AUDIT_REPORT.md</code> — CI용 진단서</li>
+          <li><code>reports/GATE_RESULT.json</code> — <code>"passed": true</code></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="step">
+      <h2><span class="badge fail">STEP 3</span> CI Gate 실패 (시뮬레이션)</h2>
+      <p><code>src/main.py</code>에 AWS 키가 들어가면 <strong>무조건 merge 차단</strong>됩니다.</p>
+      <div class="result-box fail">DevSecOps CI Gate: FAILED</div>
+      <pre>이유: CRITICAL plaintext secret in application code
+      파일: src/main.py:1 (AKIA...)</pre>
+      <p style="color: var(--muted); font-size: 0.9rem;">더미 폴더 문제는 연습용이라 통과하지만, 실제 코드에 키가 있으면 막습니다.</p>
+    </section>
+
+    <section class="step">
+      <h2>한 줄 정리</h2>
+      <div class="flow">
+        <span>코드 수정</span>
+        <span class="arrow">→</span>
+        <span>자동 검사</span>
+        <span class="arrow">→</span>
+        <span>진단 리포트</span>
+        <span class="arrow">→</span>
+        <span style="border-color: var(--green);">PASSED</span>
+        <span>또는</span>
+        <span style="border-color: var(--red);">FAILED</span>
+      </div>
+      <p>터미널 숫자는 과정이고, <strong>리포트 .md 파일</strong>이 진짜 결과물입니다.</p>
+    </section>
+
+  </div>
+</body>
+</html>

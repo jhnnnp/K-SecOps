@@ -6,6 +6,8 @@ def test_audit_secrets_finds_leaked_env():
     types = {item.finding_type for item in result.findings}
     assert "secret.aws_access_key" in types
     assert "secret.api_key" in types
+    assert "secret.github_pat" in types
+    assert "secret.database_url" in types
     assert result.files_scanned >= 1
 
 

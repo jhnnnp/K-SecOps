@@ -19,11 +19,13 @@
 | Kubernetes | `k8s/*.yaml` Checkov misconfig | privileged, NodePort |
 | CI/CD 보안 검증 | `secops-gate.yml`, `ci_gate.py`, [CI_EVIDENCE.md](./CI_EVIDENCE.md) | Dual-target + PR screenshot evidence |
 
-## Dual-Target Scope (면접 핵심)
+## Multi-Track Scope (면접 핵심)
 
 | Track | Target | Gate |
 |-------|--------|------|
 | Secrets (`audit_secrets`) | `.` 전역 (`src/` 포함) | `dummy-infra/` 외 시크릿 → **무조건 FAIL** |
+| SAST (`audit_sast`) | `.` (`src/` + fixtures) | `src/` eval/shell=True 등 → **무조건 FAIL** |
+| Dependencies (`scan_dependencies`) | `requirements.txt`, `dummy-infra/deps` | root manifest HIGH+ CVE → **FAIL** |
 | Infra (`scan_infrastructure`) | `dummy-infra`, `Dockerfile` | `dummy-infra/` CRITICAL만 baseline 회귀 검사 |
 
 > "시크릿은 레포 전체를 봅니다. 인프라는 회귀 테스트 픽스처 + 자기 Dockerfile로 엔진을 검증합니다."

@@ -392,6 +392,120 @@
           }
         }
       ]
+    },
+    {
+      "finding_type": "secret.github_pat",
+      "default_severity": "CRITICAL",
+      "scanner_sources": ["audit_secrets"],
+      "controls": [
+        {
+          "control_id": "ISMS-2.9.2",
+          "deficiency": {
+            "compliance_status": "미흡",
+            "deficiency_reason": "GitHub PAT 평문 저장·노출",
+            "deficiency_detail_template": "{resource}에서 GitHub Personal Access Token ({secret_prefix}***) 평문 탐지.",
+            "recommended_action": "PAT 즉시 revoke·rotate. GitHub OIDC 또는 fine-grained token + Vault 저장, CI secret scan gate 유지",
+            "action_priority": "즉시",
+            "evidence_required": "PAT revoke 이력, OIDC 마이그레이션 PR",
+            "tool_reference": "audit_secrets"
+          }
+        }
+      ]
+    },
+    {
+      "finding_type": "secret.database_url",
+      "default_severity": "CRITICAL",
+      "scanner_sources": ["audit_secrets"],
+      "controls": [
+        {
+          "control_id": "ISMS-2.9.2",
+          "deficiency": {
+            "compliance_status": "미흡",
+            "deficiency_reason": "DB 접속 URL·비밀번호 평문 노출",
+            "deficiency_detail_template": "{resource}에서 DB connection string with credentials 탐지.",
+            "recommended_action": "Secrets Manager / Vault로 credential 분리, connection string env 주입 금지",
+            "action_priority": "즉시",
+            "evidence_required": "Vault 마이그레이션 PR, audit_secrets 0건",
+            "tool_reference": "audit_secrets"
+          }
+        }
+      ]
+    },
+    {
+      "finding_type": "dependency.high_cve",
+      "default_severity": "HIGH",
+      "scanner_sources": ["scan_dependencies"],
+      "controls": [
+        {
+          "control_id": "ISMS-2.8.1",
+          "deficiency": {
+            "compliance_status": "미흡",
+            "deficiency_reason": "애플리케이션 의존성 HIGH CVE 미패치",
+            "deficiency_detail_template": "{resource}에서 {cve_id} HIGH 취약점 탐지.",
+            "recommended_action": "pip-audit/Trivy CI gate 연동, 패치 버전 pin 및 Dependabot PR",
+            "action_priority": "단기",
+            "evidence_required": "requirements lockfile diff, Trivy 0 HIGH 리포트",
+            "tool_reference": "scan_dependencies"
+          }
+        }
+      ]
+    },
+    {
+      "finding_type": "dependency.critical_cve",
+      "default_severity": "CRITICAL",
+      "scanner_sources": ["scan_dependencies"],
+      "controls": [
+        {
+          "control_id": "ISMS-2.8.1",
+          "deficiency": {
+            "compliance_status": "미흡",
+            "deficiency_reason": "애플리케이션 의존성 CRITICAL CVE 미패치",
+            "deficiency_detail_template": "{resource}에서 {cve_id} CRITICAL 취약점 탐지.",
+            "recommended_action": "즉시 패치 또는 dependency 제거, merge gate에서 CRITICAL CVE 차단",
+            "action_priority": "즉시",
+            "evidence_required": "패치 PR, scan_dependencies 재스캔 0 CRITICAL",
+            "tool_reference": "scan_dependencies"
+          }
+        }
+      ]
+    },
+    {
+      "finding_type": "sast.unsafe_eval",
+      "default_severity": "CRITICAL",
+      "scanner_sources": ["audit_sast"],
+      "controls": [
+        {
+          "control_id": "EFT-SEC-05",
+          "deficiency": {
+            "compliance_status": "미흡",
+            "deficiency_reason": "동적 코드 실행(eval) 사용",
+            "deficiency_detail_template": "{resource}:{line}에서 eval() 호출 탐지 — 코드 인젝션 위험.",
+            "recommended_action": "eval/exec 제거, allowlist 기반 파서 또는 AST safe literal eval로 대체",
+            "action_priority": "즉시",
+            "evidence_required": "SAST 재스캔 0건, 코드 리뷰 승인",
+            "tool_reference": "audit_sast"
+          }
+        }
+      ]
+    },
+    {
+      "finding_type": "sast.shell_injection",
+      "default_severity": "HIGH",
+      "scanner_sources": ["audit_sast"],
+      "controls": [
+        {
+          "control_id": "EFT-SEC-05",
+          "deficiency": {
+            "compliance_status": "미흡",
+            "deficiency_reason": "subprocess shell=True — OS command injection 위험",
+            "deficiency_detail_template": "{resource}:{line}에서 shell=True subprocess 탐지.",
+            "recommended_action": "shell=False + argv list, 입력값 shlex.quote 또는 allowlist 검증",
+            "action_priority": "즉시",
+            "evidence_required": "audit_sast 재스캔 0건",
+            "tool_reference": "audit_sast"
+          }
+        }
+      ]
     }
   ]
 }

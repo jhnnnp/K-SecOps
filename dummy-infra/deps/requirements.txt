@@ -1,0 +1,2 @@
+# Intentional vulnerable pin for dependency CVE regression (fixture only).
+urllib3==1.24.1

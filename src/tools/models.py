@@ -53,6 +53,29 @@ class AuditSecretsResult(BaseModel):
     target_path: str
 
 
+class SastFinding(BaseModel):
+    id: str
+    finding_type: str
+    resource: str
+    line: int
+    severity: Severity
+    title: str
+    description: str
+
+
+class AuditSastResult(BaseModel):
+    findings: list[SastFinding]
+    files_scanned: int
+    target_path: str
+
+
+class ScanDependenciesResult(BaseModel):
+    findings: list[Finding]
+    summary: ScanSummary
+    errors: list[ScannerError] = Field(default_factory=list)
+    target_path: str
+
+
 class AwsFinding(BaseModel):
     id: str
     finding_type: str
@@ -106,6 +129,8 @@ class NormalizedInput(BaseModel):
     scan_summary: ScanSummary | None = None
     scanners_run: list[str] = Field(default_factory=list)
     secret_findings: list[SecretFinding] = Field(default_factory=list)
+    sast_findings: list[SastFinding] = Field(default_factory=list)
+    dependency_findings: list[Finding] = Field(default_factory=list)
     aws_findings: list[AwsFinding] = Field(default_factory=list)
     pii_findings: list[dict] = Field(default_factory=list)
     pii_resource: str | None = None

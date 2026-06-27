@@ -10,7 +10,9 @@
 | 2 | `k8s/deployment-vulnerable.yaml` | privileged: true, hostPath | `scan_infrastructure` (Checkov) | ISMS-2.7.2, k8s.privileged_container |
 | 3 | `k8s/service-nodeport.yaml` | NodePort 노출 | `scan_infrastructure` (Checkov) | ISMS-2.7.1, k8s.exposed_nodeport |
 | 4 | `logs/app.log` | PII 평문 (RRN, 계좌, 전화, 이메일) | `mask_pii` | ISMS-2.10.1, EFT-SEC-08 |
-| 5 | `.env.leaked` | AWS Key, API Key 평문 | `audit_secrets` | ISMS-2.9.2, EFT-SEC-04 |
+| 5 | `.env.leaked` | AWS Key, API Key, GitHub PAT, JWT, DB URL, Slack webhook | `audit_secrets` | ISMS-2.9.2, EFT-SEC-04 |
+| 6 | `deps/requirements.txt` | Known HIGH/CRITICAL CVEs (urllib3 pin) | `scan_dependencies` | ISMS-2.8.1 |
+| 7 | `code/unsafe_sast.py` | eval(), shell=True | `audit_sast` | EFT-SEC-05 |
 
 ## Quick verify
 

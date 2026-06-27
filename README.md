@@ -5,7 +5,7 @@
 ![MCP](https://img.shields.io/badge/Protocol-MCP-512BD4?style=flat-square)
 ![ISMS-P](https://img.shields.io/badge/Compliance-ISMS--P-1565C0?style=flat-square)
 ![EFT](https://img.shields.io/badge/Compliance-전자금융-E65100?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-45_passing-388E3C?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-49_passing-388E3C?style=flat-square)
 ![Go](https://img.shields.io/badge/Go-1.22-alert_worker-00ADD8?style=flat-square&logo=go&logoColor=white)
 ![CI](https://img.shields.io/badge/CI-SecOps_Gate-2088FF?style=flat-square&logo=githubactions&logoColor=white)
 
@@ -15,7 +15,7 @@
 
 ---
 
-## Dual-Target Scope (Core Design)
+## Multi-Track Scope (Core Design)
 
 ```mermaid
 flowchart TB
@@ -55,6 +55,8 @@ flowchart TB
 | **A** | `audit_secrets` | `.` (entire repo) | `src/` etc. secret → **immediate FAIL** |
 | **B** | `scan_infrastructure` | `dummy-infra`, `Dockerfile` | CRITICAL in fixture → baseline only |
 | **C** | `audit_aws_config` | `dummy-infra/aws` | policy JSON + optional boto3 live |
+| **D** | `audit_sast` | `.` (src + fixtures) | `src/` unsafe pattern → **immediate FAIL** |
+| **E** | `scan_dependencies` | `requirements.txt`, `dummy-infra/deps` | app manifest HIGH+ CVE → **FAIL** |
 
 - **MCP agent**: strict sandbox — `dummy-infra/`, `reports/` only
 - **CI**: `SECOPS_REPO_SCAN=1` — secrets scan real application code

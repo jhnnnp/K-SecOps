@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | **Target** | `dummy-infra` |
-| **Generated** | 2026-06-27 05:07 UTC |
+| **Generated** | 2026-06-27 13:05 UTC |
 | **Scanners** | audit_aws · audit_secrets · checkov · mask_pii · trivy |
 | **Auditor** | Agentic K-SecOps MCP Pipeline |
 
@@ -69,7 +69,7 @@
 dummy-infra/.env.leaked에서 AWS Access Key (AKIA***) 평문 탐지. Git·설정 파일 내 키 생명주기 관리 미준수.
 
 **권고 조치**  
-노출 키 즉시 deactivate·rotate, AWS Secrets Manager 이관, audit_secrets CI gate로 AKIA 패턴 커밋 차단
+노출 키 즉시 deactivate·rotate. 이후 OPAQUE 프로토콜·E2EE 기반 Zero-Knowledge Vault(Envelo 아키텍처)로 시크릿 중앙화, 런타임 attested fetch만 허용 — env/소스코드 하드코딩 금지. audit_secrets CI gate 유지
 
 **필요 증적**  
 IAM 키 rotate 이력, Secrets Manager 마이그레이션 PR, git history purge 기록
@@ -97,7 +97,7 @@ IAM 키 rotate 이력, Secrets Manager 마이그레이션 PR, git history purge 
 인증 자격증명이 dummy-infra/.env.leaked에 암호화 없이 저장됨.
 
 **권고 조치**  
-환경변수 직접 주입 금지, External Secrets Operator + KMS envelope encryption 적용
+평문 env 주입 폐지. OPAQUE 기반 E2EE Vault에서 런타임 secret retrieval, KMS envelope는 Vault 내부 계층으로만 사용
 
 **필요 증적**  
 KMS 키 정책, SealedSecret/ESO manifest
@@ -125,7 +125,7 @@ KMS 키 정책, SealedSecret/ESO manifest
 전산자원 접근 자격증명이 dummy-infra/.env.leaked에 평문 노출.
 
 **권고 조치**  
-HSM/KMS 기반 키 저장으로 전환, .env 파일 gitignore·pre-commit hook(gitleaks) 적용
+Envelo-style E2EE secret vault 도입, git pre-commit(gitleaks)+CI dual-target gate. 평문 키는 rotate 후 vault migration ticket 생성
 
 **필요 증적**  
 키 관리 대장, gitleaks CI 통과 로그
@@ -153,7 +153,7 @@ HSM/KMS 기반 키 저장으로 전환, .env 파일 gitignore·pre-commit hook(g
 API Key가 dummy-infra/.env.leaked에 하드코딩. 접근권한 중앙 관리·회수 절차 미적용.
 
 **권고 조치**  
-Secrets Manager 이관, API Key scoped permission·만료 정책 적용, audit_secrets 배포 전 gate
+API Key를 OPAQUE/E2EE Vault에 등록하고 scoped runtime fetch로 전환. audit_secrets gate + Envelo vault migration runbook
 
 **필요 증적**  
 키 rotate·폐기 이력, scoped key 정책
@@ -181,7 +181,7 @@ Secrets Manager 이관, API Key scoped permission·만료 정책 적용, audit_s
 dummy-infra/.env.leaked에 API Key 평문 저장.
 
 **권고 조치**  
-저장 시 KMS 암호화, 런타임 inject only (파일·env 직접 커밋 금지)
+Vault-at-rest E2EE + OPAQUE handshake 기반 secret delivery. 파일·env 직접 커밋 금지, CI repo-wide scan
 
 **필요 증적**  
 암호화 저장 설정 스크린샷, CI secret scan 통과
@@ -950,11 +950,11 @@ Pod spec diff
 
 | # | Action | Control | Tool |
 |---|--------|---------|------|
-| 1 | 노출 키 즉시 deactivate·rotate | ISMS-2.9.2 | `audit_secrets` |
-| 2 | 환경변수 직접 주입 금지 | ISMS-2.9.1 | `audit_secrets` |
-| 3 | HSM/KMS 기반 키 저장으로 전환 | EFT-SEC-04 | `audit_secrets` |
-| 4 | Secrets Manager 이관 | ISMS-2.5.1 | `audit_secrets` |
-| 5 | 저장 시 KMS 암호화 | EFT-SEC-03 | `audit_secrets` |
+| 1 | 노출 키 즉시 deactivate·rotate. 이후 OPAQUE 프로토콜·E2EE 기반 Zero-Knowledge Vault(Envelo 아키텍처)로 시크릿 중앙화 | ISMS-2.9.2 | `audit_secrets` |
+| 2 | 평문 env 주입 폐지. OPAQUE 기반 E2EE Vault에서 런타임 secret retrieval | ISMS-2.9.1 | `audit_secrets` |
+| 3 | Envelo-style E2EE secret vault 도입 | EFT-SEC-04 | `audit_secrets` |
+| 4 | API Key를 OPAQUE/E2EE Vault에 등록하고 scoped runtime fetch로 전환. audit_secrets gate + Envelo vault migration runbook | ISMS-2.5.1 | `audit_secrets` |
+| 5 | Vault-at-rest E2EE + OPAQUE handshake 기반 secret delivery. 파일·env 직접 커밋 금지 | EFT-SEC-03 | `audit_secrets` |
 | 6 | S3 Block Public Access 4종 활성화 | ISMS-2.7.1 | `audit_aws` |
 | 7 | Private bucket + CloudFront OAC 또는 VPC endpoint 경유 | EFT-SEC-01 | `audit_aws` |
 | 8 | Least privilege IAM | ISMS-2.5.1 | `audit_aws` |

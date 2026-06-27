@@ -1,8 +1,11 @@
 {
-  "version": 2,
-  "description": "Dual-target CI baseline. Secrets in dummy-infra/ are known fixtures; secrets anywhere else fail unconditionally. Infrastructure CRITICAL gate applies only to dummy-infra/ regression fixtures.",
+  "version": 3,
+  "description": "Multi-track CI baseline: secrets/SAST in dummy-infra/ are fixtures; application paths fail unconditionally. Dependency CVEs in dummy-infra/deps/ are regression fixtures; requirements.txt HIGH+ CVEs always fail.",
   "target": "dummy-infra",
   "fixture_secret_prefixes": ["dummy-infra/"],
+  "sast_fixture_prefixes": ["dummy-infra/"],
+  "deps_fixture_prefixes": ["dummy-infra/deps/"],
+  "app_dependency_manifests": ["requirements.txt"],
   "infra_baseline_prefixes": ["dummy-infra/"],
   "allowed_finding_keys": [
     "scan_infrastructure|CKV_K8S_23|dummy-infra/k8s/deployment-vulnerable.yaml",
@@ -10,6 +13,10 @@
     "audit_secrets|secret.aws_access_key|dummy-infra/.env.leaked",
     "audit_secrets|secret.aws_secret_key|dummy-infra/.env.leaked",
     "audit_secrets|secret.api_key|dummy-infra/.env.leaked",
+    "audit_secrets|secret.github_pat|dummy-infra/.env.leaked",
+    "audit_secrets|secret.jwt|dummy-infra/.env.leaked",
+    "audit_secrets|secret.database_url|dummy-infra/.env.leaked",
+    "audit_secrets|secret.slack_webhook|dummy-infra/.env.leaked",
     "audit_aws|aws.s3_public_access|dummy-infra/aws/s3-public-bucket-policy.json",
     "audit_aws|aws.iam_overprivileged|dummy-infra/aws/iam-admin-policy.json"
   ],

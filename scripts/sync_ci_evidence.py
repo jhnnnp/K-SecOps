@@ -6,6 +6,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -66,6 +68,16 @@ def main() -> int:
 
 
 def _api_get(url: str, token: str) -> dict:
+    if shutil.which("gh"):
+        api_path = url.replace("https://api.github.com/", "")
+        result = subprocess.run(
+            ["gh", "api", api_path],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return json.loads(result.stdout)
+
     request = urllib.request.Request(
         url,
         headers={

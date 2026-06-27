@@ -10,9 +10,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from tools.aws_auditor import audit_aws_config  # noqa: E402
-from tools.secret_auditor import audit_secrets  # noqa: E402
 from tools.compliance_report import generate_compliance_report  # noqa: E402
+from tools.sast_auditor import audit_sast  # noqa: E402
+from tools.scan_dependencies import scan_dependencies  # noqa: E402
 from tools.scan_infra import scan_infrastructure  # noqa: E402
+from tools.secret_auditor import audit_secrets  # noqa: E402
 
 
 def main() -> int:
@@ -30,6 +32,13 @@ def main() -> int:
     secrets = audit_secrets(target)
     print(f"[audit_secrets] findings={len(secrets.findings)} files={secrets.files_scanned}")
 
+    sast = audit_sast(target, repo_wide=False)
+    print(f"[audit_sast] findings={len(sast.findings)} files={sast.files_scanned}")
+
+    deps = scan_dependencies(["dummy-infra/deps"], strict=True)
+    dep_high = len([d for d in deps.findings if d.severity in {"CRITICAL", "HIGH"}])
+    print(f"[scan_dependencies] cve_high_plus={dep_high} errors={len(deps.errors)}")
+
     aws = audit_aws_config(target)
     print(f"[audit_aws] findings={len(aws.findings)} live={aws.live_scan}")
 
@@ -38,6 +47,8 @@ def main() -> int:
         output_path=output,
         scan_result=scan.model_dump(),
         secrets_result=secrets.model_dump(),
+        sast_result=sast.model_dump(),
+        deps_result=deps.model_dump(),
         aws_result=aws.model_dump(),
         auto_collect=True,
     )

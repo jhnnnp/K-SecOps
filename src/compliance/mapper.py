@@ -56,6 +56,44 @@ def build_violations(inputs: NormalizedInput) -> list[ComplianceViolation]:
             )
         )
 
+    for sast_finding in inputs.sast_findings:
+        context = {
+            "resource": sast_finding.resource,
+            "line": sast_finding.line,
+            "count": 1,
+        }
+        violations.extend(
+            _violations_from_rule(
+                finding_type=sast_finding.finding_type,
+                severity=sast_finding.severity,
+                resource=sast_finding.resource,
+                scanner="audit_sast",
+                source_finding_id=sast_finding.id,
+                context=context,
+            )
+        )
+
+    for dep in inputs.dependency_findings:
+        if dep.finding_type is None:
+            continue
+        if dep.severity not in REPORTABLE_SEVERITIES:
+            continue
+        context = {
+            "resource": dep.resource,
+            "cve_id": dep.id.replace("TRIVY-", ""),
+            "count": 1,
+        }
+        violations.extend(
+            _violations_from_rule(
+                finding_type=dep.finding_type,
+                severity=dep.severity,
+                resource=dep.resource,
+                scanner="scan_dependencies",
+                source_finding_id=dep.id,
+                context=context,
+            )
+        )
+
     if inputs.pii_findings:
         resource = inputs.pii_resource or inputs.target_path
         for pii in inputs.pii_findings:

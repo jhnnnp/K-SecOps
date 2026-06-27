@@ -7,11 +7,15 @@ from tools.file_reader import read_log_file
 from tools.aws_auditor import audit_aws_config
 from tools.models import (
     AuditAwsResult,
+    AuditSastResult,
     AuditSecretsResult,
     GenerateComplianceReportResult,
     NormalizedInput,
+    ScanDependenciesResult,
     ScanInfrastructureResult,
 )
+from tools.scan_dependencies import scan_dependencies
+from tools.sast_auditor import audit_sast
 from tools.pii_masker import MaskPiiResult
 from tools.path_utils import relative_project_path, resolve_sandbox_path
 from tools.pii_masker import mask_pii
@@ -27,6 +31,8 @@ def generate_compliance_report(
     pii_result: dict | None = None,
     secrets_result: dict | None = None,
     aws_result: dict | None = None,
+    deps_result: dict | None = None,
+    sast_result: dict | None = None,
     pii_log_path: str | None = None,
     auto_collect: bool = True,
 ) -> GenerateComplianceReportResult:
@@ -41,6 +47,8 @@ def generate_compliance_report(
         pii_result=pii_result,
         secrets_result=secrets_result,
         aws_result=aws_result,
+        deps_result=deps_result,
+        sast_result=sast_result,
         pii_log_path=pii_log_path,
         auto_collect=auto_collect,
     )
@@ -59,6 +67,10 @@ def generate_compliance_report(
         scanners.append("mask_pii")
     if normalized.secret_findings:
         scanners.append("audit_secrets")
+    if normalized.sast_findings:
+        scanners.append("audit_sast")
+    if normalized.dependency_findings:
+        scanners.append("scan_dependencies")
     if normalized.aws_findings:
         scanners.append("audit_aws")
 
@@ -85,6 +97,8 @@ def _normalize_inputs(
     pii_result: dict | None,
     secrets_result: dict | None,
     aws_result: dict | None,
+    deps_result: dict | None,
+    sast_result: dict | None,
     pii_log_path: str | None,
     auto_collect: bool,
 ) -> NormalizedInput:
@@ -113,6 +127,18 @@ def _normalize_inputs(
     if aws_result:
         aws_findings = AuditAwsResult.model_validate(aws_result).findings
 
+    dependency_findings = []
+    if deps_result is None and auto_collect:
+        deps_result = scan_dependencies(["dummy-infra/deps"], strict=True).model_dump()
+    if deps_result:
+        dependency_findings = ScanDependenciesResult.model_validate(deps_result).findings
+
+    sast_findings = []
+    if sast_result is None and auto_collect:
+        sast_result = audit_sast(target_path, repo_wide=False).model_dump()
+    if sast_result:
+        sast_findings = AuditSastResult.model_validate(sast_result).findings
+
     pii_findings: list[dict] = []
     pii_resource = pii_log_path
     if pii_result is None and auto_collect:
@@ -134,6 +160,8 @@ def _normalize_inputs(
         scan_summary=scan_summary,
         scanners_run=scanners_run,
         secret_findings=secret_findings,
+        sast_findings=sast_findings,
+        dependency_findings=dependency_findings,
         aws_findings=aws_findings,
         pii_findings=pii_findings,
         pii_resource=pii_resource,
