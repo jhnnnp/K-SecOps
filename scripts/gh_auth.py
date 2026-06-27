@@ -18,7 +18,10 @@ LOGIN_IN_PROGRESS = False
 LOGIN_LAST_OUTPUT = ""
 LOGIN_STARTED_AT = 0.0
 LOGIN_TIMEOUT_SEC = 120
-REQUIRED_SCOPES = ("repo", "read:org", "gist")
+REQUIRED_SCOPES = ("repo",)
+OPTIONAL_SCOPES = ("read:org", "gist")
+FIX_SCOPE_CMD = "gh auth refresh -h github.com -s repo,read:org,gist"
+FIX_LOGIN_CMD = "gh auth login -h github.com -s repo,read:org,gist"
 NOTE_BROWSER_VS_CLI = (
     "GitHub 웹사이트(github.com) 로그인과 gh CLI 인증은 별개입니다. "
     "PR push에는 gh CLI 로그인(repo scope)이 필요합니다."
@@ -50,14 +53,14 @@ def check_gh_auth() -> dict[str, Any]:
                 reason="invalid_token",
                 message=f"gh CLI 토큰이 만료되었거나 무효합니다{f' (@{username})' if username else ''}.",
                 username=username,
-                login_command="gh auth login -s repo,read:org,gist",
+                login_command=FIX_LOGIN_CMD,
                 raw_tail=_tail(combined),
             )
         return _fail(
             reason="not_logged_in",
             message="gh CLI에 GitHub가 연결되어 있지 않습니다.",
             username=username,
-            login_command="gh auth login -s repo,read:org,gist",
+            login_command=FIX_LOGIN_CMD,
             raw_tail=_tail(combined),
         )
 
@@ -72,22 +75,41 @@ def check_gh_auth() -> dict[str, Any]:
             reason="invalid_token",
             message=f"gh 토큰 검증 실패{f' (@{username})' if username else ''}. 재로그인이 필요합니다.",
             username=username,
-            login_command="gh auth login -s repo,read:org,gist",
+            login_command=FIX_LOGIN_CMD,
             raw_tail=_tail(verify.stderr or verify.stdout),
         )
 
     api_user = verify.stdout.strip()
     scopes = _parse_scopes(combined)
+
+    if _has_repo_access():
+        return {
+            "ok": True,
+            "reason": "authenticated",
+            "message": f"gh CLI 연결됨 (@{api_user or username}) · repo push 가능",
+            "username": api_user or username,
+            "hostname": _parse_hostname(combined) or "github.com",
+            "scopes": scopes,
+            "login_command": "",
+            "install_hint": "",
+            "note": "",
+            "missing_scopes": [],
+        }
+
     missing = [s for s in REQUIRED_SCOPES if s not in scopes]
 
-    if missing:
+    if missing or not scopes:
         return _fail(
             reason="insufficient_scopes",
-            message=f"토큰 scope 부족: {', '.join(missing)} 필요 (현재: {', '.join(scopes) or 'unknown'})",
+            message=(
+                f"로그인은 됐지만 repo 권한 없음 (현재 scope: {', '.join(scopes) or 'unknown'}). "
+                "PR push에 repo scope 필요."
+            ),
             username=api_user or username,
             scopes=scopes,
-            login_command="gh auth refresh -s repo,read:org,gist",
-            missing_scopes=missing,
+            login_command=FIX_SCOPE_CMD,
+            missing_scopes=missing or ["repo"],
+            fix_hint="터미널: gh auth login 할 때 -s repo,read:org,gist 옵션 필수",
         )
 
     return {
@@ -335,6 +357,18 @@ def _parse_failed_username(text: str) -> str:
 def _parse_hostname(text: str) -> str:
     match = re.search(r"Logged in to (\S+)", text)
     return match.group(1) if match else ""
+
+
+def _has_repo_access() -> bool:
+    """True if gh can read the current repository (repo scope effective)."""
+    proc = subprocess.run(
+        ["gh", "repo", "view", "--json", "nameWithOwner"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return proc.returncode == 0
 
 
 def _parse_scopes(text: str) -> list[str]:

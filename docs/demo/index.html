@@ -78,6 +78,11 @@
           <button id="gh-token-submit" type="button" class="rounded-lg bg-slate-700 px-4 py-2 text-sm hover:bg-slate-600">적용</button>
         </div>
       </div>
+      <div id="gh-fix-cmd-panel" class="hidden rounded-lg border border-indigo-800/60 bg-indigo-950/40 px-4 py-3 space-y-2">
+        <p class="text-xs font-medium text-indigo-200">터미널에서 실행 (로그인 후에도 repo scope 필요)</p>
+        <code id="gh-fix-cmd" class="block text-xs font-mono text-indigo-100 break-all">gh auth refresh -h github.com -s repo,read:org,gist</code>
+        <p class="text-xs text-indigo-300/80">처음 로그인 시: <code class="font-mono">gh auth login -h github.com -s repo,read:org,gist</code></p>
+      </div>
       <p id="gh-install-hint" class="hidden text-xs text-amber-400/90"></p>
       <pre id="gh-auth-raw" class="hidden max-h-20 overflow-y-auto text-xs text-slate-600 font-mono"></pre>
     </section>
@@ -391,24 +396,32 @@
           if (ghPollTimer) { clearInterval(ghPollTimer); ghPollTimer = null; }
         } else if (auth.reason === "insufficient_scopes") {
           badge.className = "rounded-full px-3 py-1 text-xs font-medium bg-amber-900/60 text-amber-300 border border-amber-800";
-          badge.textContent = "Scope 부족";
+          badge.textContent = "repo scope 필요";
           msg.textContent = auth.message;
-          detail.textContent = auth.login_in_progress
-            ? "scope 갱신 진행 중… 터미널: gh auth refresh -s repo,read:org,gist"
-            : "「scope 갱신」 또는 터미널 재로그인";
+          detail.textContent = auth.fix_hint || "아래 터미널 명령 실행 후 「상태 확인」";
           if (scopeBtn) scopeBtn.classList.remove("hidden");
+          const fixPanel = document.getElementById("gh-fix-cmd-panel");
+          const fixCmd = document.getElementById("gh-fix-cmd");
+          if (fixPanel) fixPanel.classList.remove("hidden");
+          if (fixCmd && auth.login_command) fixCmd.textContent = auth.login_command;
         } else if (auth.reason === "invalid_token") {
           badge.className = "rounded-full px-3 py-1 text-xs font-medium bg-rose-900/60 text-rose-300 border border-rose-800";
           badge.textContent = "토큰 무효";
           msg.textContent = auth.message;
-          detail.textContent = "터미널: gh auth login -s repo,read:org,gist";
+          detail.textContent = "터미널: gh auth login -h github.com -s repo,read:org,gist";
           if (scopeBtn) scopeBtn.classList.add("hidden");
+          document.getElementById("gh-fix-cmd-panel")?.classList.remove("hidden");
         } else {
           badge.className = "rounded-full px-3 py-1 text-xs font-medium bg-amber-900/40 text-amber-300 border border-amber-800";
           badge.textContent = auth.login_in_progress ? "Authenticating…" : "gh Not connected";
           msg.textContent = auth.message;
           detail.textContent = auth.login_command ? "터미널: " + auth.login_command : "";
           if (scopeBtn) scopeBtn.classList.add("hidden");
+          document.getElementById("gh-fix-cmd-panel")?.classList.toggle("hidden", auth.ok);
+        }
+
+        if (auth.ok) {
+          document.getElementById("gh-fix-cmd-panel")?.classList.add("hidden");
         }
 
         if (auth.login_in_progress && !auth.ok) {
