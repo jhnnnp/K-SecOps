@@ -27,6 +27,12 @@
     </section>
     </header>
 
+    <section id="wrong-origin" class="hidden rounded-xl border border-rose-800 bg-rose-950/40 px-5 py-4 text-sm text-rose-100">
+      <p class="font-medium">잘못된 접속 방식</p>
+      <p class="mt-1">HTML 파일 직접 열기(file://) 또는 GitHub Pages에서는 API가 동작하지 않습니다.</p>
+      <p class="mt-2 font-mono text-rose-200">python3 scripts/demo_hub.py → http://127.0.0.1:8765</p>
+    </section>
+
     <section id="gh-auth-panel" class="hidden rounded-xl border border-slate-700 bg-slate-900/80 p-5 space-y-4">
       <div class="rounded-lg border border-amber-900/50 bg-amber-950/30 px-4 py-3 text-xs text-amber-100/90 leading-relaxed">
         <strong class="text-amber-200">중요:</strong> github.com 웹 로그인 ≠ gh CLI.
@@ -38,8 +44,9 @@
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p class="text-xs uppercase tracking-wider text-slate-500">GitHub CLI (gh)</p>
-              <p id="gh-auth-message" class="mt-1 text-sm text-slate-300">확인 중…</p>
-              <p id="gh-auth-detail" class="mt-1 text-xs text-slate-500 font-mono break-all"></p>
+          <p id="gh-auth-message" class="mt-1 text-sm text-slate-300">확인 중…</p>
+          <p id="gh-auth-detail" class="mt-1 text-xs text-slate-500 font-mono break-all"></p>
+          <p id="gh-last-checked" class="mt-1 text-xs text-slate-600"></p>
             </div>
             <span id="gh-auth-badge" class="rounded-full px-3 py-1 text-xs font-medium shrink-0">—</span>
           </div>
@@ -144,7 +151,13 @@
     const meta = document.getElementById("dashboard-meta");
     const progressPanel = document.getElementById("progress-panel");
     const ghAuthPanel = document.getElementById("gh-auth-panel");
-    const isHubServer = location.hostname === "127.0.0.1" || location.hostname === "localhost";
+    const wrongOrigin = document.getElementById("wrong-origin");
+    const isHubServer =
+      location.protocol.startsWith("http") &&
+      (location.hostname === "127.0.0.1" ||
+        location.hostname === "localhost" ||
+        location.hostname === "[::1]" ||
+        location.port === "8765");
     let ghAuthed = false;
     let gitClean = true;
     let ghPollTimer = null;
@@ -340,14 +353,24 @@
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
     async function refreshGhAuth() {
-      if (!isHubServer) return;
+      if (!isHubServer) {
+        if (wrongOrigin) wrongOrigin.classList.remove("hidden");
+        return;
+      }
+      if (wrongOrigin) wrongOrigin.classList.add("hidden");
       ghAuthPanel.classList.remove("hidden");
       const refreshBtnEl = document.getElementById("gh-auth-refresh");
-      if (refreshBtnEl) refreshBtnEl.disabled = true;
+      const prevLabel = refreshBtnEl ? refreshBtnEl.textContent : "";
+      if (refreshBtnEl) {
+        refreshBtnEl.disabled = true;
+        refreshBtnEl.textContent = "확인 중…";
+      }
       try {
         const res = await fetch("/api/gh/sync", { method: "POST" });
         if (!res.ok) throw new Error("HTTP " + res.status);
         const auth = await res.json();
+        const checkedAt = new Date().toLocaleTimeString("ko-KR");
+        document.getElementById("gh-last-checked").textContent = "마지막 확인: " + checkedAt + " (API OK)";
         ghAuthed = !!auth.ok;
         const git = auth.git || {};
         gitClean = git.ok !== false;
@@ -420,11 +443,20 @@
         }
 
         renderCards();
+        showBanner(
+          (auth.ok ? "gh Connected — " : "gh 미연결 — ") + auth.message,
+          auth.ok ? "success" : "warn"
+        );
       } catch (e) {
         document.getElementById("gh-auth-message").textContent = "상태 확인 실패: " + e.message;
-        showBanner("상태 확인 API 실패 — demo_hub 재시작 후 다시 시도", "error");
+        const lc = document.getElementById("gh-last-checked");
+        if (lc) lc.textContent = "마지막 확인: 실패 " + new Date().toLocaleTimeString("ko-KR");
+        showBanner("API 실패 — demo_hub.py 가 http://127.0.0.1:8765 에서 실행 중인지 확인", "error");
       } finally {
-        if (refreshBtnEl) refreshBtnEl.disabled = false;
+        if (refreshBtnEl) {
+          refreshBtnEl.disabled = false;
+          refreshBtnEl.textContent = prevLabel || "상태 확인";
+        }
       }
     }
 
@@ -493,7 +525,9 @@
       await refreshGhAuth();
     }
 
-    if (isHubServer) {
+    if (!isHubServer && wrongOrigin) {
+      wrongOrigin.classList.remove("hidden");
+    } else if (isHubServer) {
       document.getElementById("gh-login-web").addEventListener("click", startGhWebLogin);
       document.getElementById("gh-login-refresh").addEventListener("click", startGhScopeRefresh);
       document.getElementById("gh-auth-refresh").addEventListener("click", refreshGhAuth);
