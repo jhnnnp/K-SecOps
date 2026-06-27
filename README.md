@@ -11,7 +11,7 @@
 
 > **Deterministic Python DevSecOps pipeline** — Semgrep SAST, Trivy SCA/infra, Checkov, boto3 scan, ISMS-P·전자금융 Lab report, PR merge gate. MCP is the optional agent interface, not the security engine.
 
-[Sample Report](./reports/SAMPLE_AUDIT_REPORT.md) · [Sample Dashboard](./reports/SAMPLE_DASHBOARD.html) · [Repository](https://github.com/jhnnnp/K-SecOps) · [Validation Sources](./docs/VALIDATION_SOURCES.md) · [CI Evidence Guide](./docs/CI_EVIDENCE.md) · [AWS Live Scan](./docs/AWS_LIVE_SCAN.md) · [JD Mapping](./docs/JD_MAPPING.md)
+[Sample Report](./reports/SAMPLE_AUDIT_REPORT.md) · [Sample Dashboard (PASS)](./reports/SAMPLE_DASHBOARD.html) · [Sample Dashboard (FAIL)](./reports/SAMPLE_DASHBOARD_FAIL.html) · [Repository](https://github.com/jhnnnp/K-SecOps) · [Validation Sources](./docs/VALIDATION_SOURCES.md) · [CI Evidence Guide](./docs/CI_EVIDENCE.md) · [AWS Live Scan](./docs/AWS_LIVE_SCAN.md) · [JD Mapping](./docs/JD_MAPPING.md)
 
 ---
 
@@ -150,7 +150,35 @@ PYTHONPATH=src python3 scripts/ci_gate.py
 
 # Simulate intentional FAIL logic
 PYTHONPATH=src python3 scripts/demo_intentional_fail.py
+
+# Regenerate committed PASS/FAIL sample dashboards (portfolio snapshots)
+python3 scripts/generate_sample_dashboards.py
 ```
+
+---
+
+## Scenario Runner (로컬 vs PR)
+
+`python3 scripts/run_scenario.py` 로 번호를 고르면 **같은 `ci_gate.py` 엔진**을 다른 경로로 돌립니다.
+
+| # | 어디서 | 무엇을 | 결과 / 대시보드 |
+|---|--------|--------|------------------|
+| 1 | 로컬 | dummy-infra Lab 리포트 | `SAMPLE_AUDIT_REPORT.md` |
+| 2 | 로컬 | main 기준 gate | exit **0** → `SECOPS_DASHBOARD.html` (PASS) |
+| 3 | 로컬 | `src/` 시크릿 주입 후 gate | exit **1** (차단 로직만 확인, HTML 생략 가능) |
+| 4 | 로컬 | 1 → 2 → 3 일괄 | — |
+| 5 | **GitHub PR** | `demo/ci-pass` push → PR | CI **초록** · artifact에 PASS 대시보드 |
+| 6 | **GitHub PR** | `demo/ci-fail-secret` (예시 키 in `src/main.py`) | CI **빨강** · artifact에 FAIL 대시보드 |
+| 7 | GitHub | README CI 증거 동기화 | PR/커밋으로 배지·링크 갱신 |
+| 8–9 | Actions | workflow_dispatch | 원격 gate / sync |
+
+**흐름 요약**
+
+1. **로컬 (2·3)** — 내 PC에서 gate 실행 → `reports/SECOPS_DASHBOARD.html` 이 **그 실행의 PASS/FAIL** 을 반영합니다.
+2. **PR (5·6)** — 브랜치를 push하면 GitHub Actions가 **그 브랜치 코드**로 동일 gate 실행 → PR Checks 초록/빨강 + **Actions artifact** 에 HTML.
+3. **README 샘플** — [`SAMPLE_DASHBOARD.html`](./reports/SAMPLE_DASHBOARD.html) / [`SAMPLE_DASHBOARD_FAIL.html`](./reports/SAMPLE_DASHBOARD_FAIL.html) 은 포트폴리오용 **고정 스냅샷** (PR artifact 를 열지 않아도 PASS/FAIL UI 확인 가능).
+
+성공 시나리오 → 성공 PR, 실패 시나리오 → 실패 PR. 엔진은 하나이고 **코드 상태 + 실행 위치(로컬/CI)** 만 다릅니다.
 
 ---
 

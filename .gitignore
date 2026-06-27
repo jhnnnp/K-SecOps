@@ -13,3 +13,4 @@ reports/GATE_RESULT.json
 reports/SECOPS_*.html
 !reports/SAMPLE_AUDIT_REPORT.md
 !reports/SAMPLE_DASHBOARD.html
+!reports/SAMPLE_DASHBOARD_FAIL.html
