@@ -498,11 +498,9 @@ def _load_status() -> dict[str, Any]:
 
 
 def _require_gh() -> None:
-    if shutil.which("gh") is None:
-        raise RuntimeError("gh CLI required. Install and run `gh auth login`.")
-    result = subprocess.run(["gh", "auth", "status"], cwd=ROOT, capture_output=True, check=False)
-    if result.returncode != 0:
-        raise RuntimeError("`gh auth login` required for PR demo scenarios.")
+    from gh_auth import require_gh_auth
+
+    require_gh_auth()
 
 
 def _require_git_clean() -> None:

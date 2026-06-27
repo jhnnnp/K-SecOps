@@ -21,11 +21,13 @@ from demo_scenarios import (  # noqa: E402
     run_full_pr_pipeline,
     run_local_gate,
 )
+from gh_auth import check_gh_auth, login_status, login_with_token, start_web_login  # noqa: E402
 
 try:
     from fastapi import FastAPI, HTTPException
     from fastapi.responses import FileResponse
     from fastapi.staticfiles import StaticFiles
+    from pydantic import BaseModel
 except ImportError as exc:
     raise SystemExit("Install dependencies: pip install fastapi uvicorn") from exc
 
@@ -34,6 +36,10 @@ JOBS: dict[str, "JobRecord"] = {}
 JOBS_LOCK = threading.Lock()
 
 app = FastAPI(title="K-SecOps Demo Hub", version="1.0.0")
+
+
+class TokenBody(BaseModel):
+    token: str
 
 
 @dataclass
@@ -66,10 +72,41 @@ def list_scenarios() -> list[dict[str, Any]]:
     return [asdict(item) for item in SCENARIOS]
 
 
+@app.get("/api/gh/status")
+def gh_status() -> dict[str, Any]:
+    return login_status()
+
+
+@app.post("/api/gh/login/web")
+def gh_login_web() -> dict[str, Any]:
+    return start_web_login()
+
+
+@app.post("/api/gh/login/token")
+def gh_login_token(body: TokenBody) -> dict[str, Any]:
+    result = login_with_token(body.token)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "login failed"))
+    return result
+
+
 @app.post("/api/scenarios/{scenario_id}/run")
 def run_scenario(scenario_id: str) -> dict[str, str]:
     if scenario_id not in {"2", "3", *PR_SCENARIOS}:
         raise HTTPException(status_code=400, detail=f"Unsupported scenario: {scenario_id}")
+
+    if scenario_id in PR_SCENARIOS:
+        auth = check_gh_auth()
+        if not auth.get("ok"):
+            raise HTTPException(
+                status_code=401,
+                detail={
+                    "message": auth.get("message", "GitHub login required"),
+                    "reason": auth.get("reason"),
+                    "login_command": auth.get("login_command"),
+                    "install_hint": auth.get("install_hint"),
+                },
+            )
 
     job_id = str(uuid.uuid4())
     with JOBS_LOCK:
@@ -224,8 +261,13 @@ def main() -> None:
         raise SystemExit(1)
 
     DEMO_LIVE_DIR.mkdir(parents=True, exist_ok=True)
+    auth = check_gh_auth()
     print(f"K-SecOps Demo Hub → http://{args.host}:{port}")
-    print("PR scenarios require: gh auth login")
+    if auth.get("ok"):
+        print(f"GitHub: {auth.get('message')}")
+    else:
+        print(f"GitHub: NOT READY — {auth.get('message')}")
+        print(f"  Fix: {auth.get('login_command') or 'Use Demo Hub 「GitHub 로그인」 button'}")
     uvicorn.run(app, host=args.host, port=port, log_level="info")
 
 
