@@ -1,0 +1,40 @@
+name: Sync CI Evidence
+
+on:
+  workflow_run:
+    workflows: ["SecOps Gate"]
+    types: [completed]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"
+
+permissions:
+  contents: write
+  pull-requests: read
+  checks: read
+
+jobs:
+  sync-evidence:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion != 'cancelled'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sync CI evidence from GitHub API
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python3 scripts/sync_ci_evidence.py
+
+      - name: Commit evidence docs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/CI_EVIDENCE_LATEST.md README.md
+          if git diff --staged --quiet; then
+            echo "No evidence changes to commit."
+          else
+            git commit -m "docs: auto-sync CI evidence from GitHub API"
+            git push
+          fi

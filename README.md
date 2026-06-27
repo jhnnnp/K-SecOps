@@ -60,9 +60,17 @@ flowchart TB
 
 ### CI Evidence (portfolio)
 
-| PASSED | FAILED (secret in `src/`) |
-|--------|---------------------------|
-| _[Add `docs/assets/ci-evidence/ci-pass.png` after GitHub PR]_ | _[Add `docs/assets/ci-evidence/ci-fail-secret.png`]_ |
+<!-- CI_EVIDENCE_AUTO_START -->
+_Auto-synced by [`scripts/sync_ci_evidence.py`](./scripts/sync_ci_evidence.py) or [Sync CI Evidence](.github/workflows/ci-evidence-sync.yml) workflow._
+
+See **[docs/CI_EVIDENCE_LATEST.md](./docs/CI_EVIDENCE_LATEST.md)** for live PR check status.
+
+| PASSED PR | FAILED PR (intentional) |
+|-----------|-------------------------|
+| [#1 demo/ci-pass](https://github.com/jhnnnp/K-SecOps/pull/1) | [#2 demo/ci-fail-secret](https://github.com/jhnnnp/K-SecOps/pull/2) |
+
+Manual screenshots (optional): `docs/assets/ci-evidence/`
+<!-- CI_EVIDENCE_AUTO_END -->
 
 Step-by-step: **[docs/CI_EVIDENCE.md](./docs/CI_EVIDENCE.md)**
 

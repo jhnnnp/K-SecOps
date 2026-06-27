@@ -28,7 +28,24 @@ CI Gate: SUCCESS
 DevSecOps CI Gate: PASSED
 ```
 
-**캡처:** `docs/assets/ci-evidence/ci-pass.png` (Checks + PR 코멘트)
+**캡처 (선택):** `docs/assets/ci-evidence/ci-pass.png` — 또는 아래 자동 동기화 사용
+
+---
+
+## 자동 동기화 (스크린샷 없이 API 증거)
+
+GitHub API로 PR 체크 상태·봇 코멘트를 가져와 README/README에 반영합니다.
+
+```bash
+# 로컬 (gh 로그인 후)
+export GH_TOKEN=$(gh auth token)
+python3 scripts/sync_ci_evidence.py
+# -> docs/CI_EVIDENCE_LATEST.md + README 자동 패치
+```
+
+GitHub Actions [`ci-evidence-sync.yml`](../.github/workflows/ci-evidence-sync.yml)이 **SecOps Gate** 실행 후 자동 커밋합니다.
+
+- [x] Demo PASSED PR opened 2026-06-27
 
 ---
 
