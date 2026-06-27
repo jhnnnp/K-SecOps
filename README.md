@@ -77,7 +77,7 @@ _Last updated: 2026-06-27 17:25 UTC_
 
 | Demo | PR | Check | Expected | Actual |
 |------|-----|-------|----------|--------|
-| PASSED | [#1](https://github.com/jhnnnp/K-SecOps/pull/1) | `devsecops-gate` | success | **UNKNOWN** |
+| PASSED | [#1](https://github.com/jhnnnp/K-SecOps/pull/1) | `devsecops-gate` | success | **PASS** |
 | FAILED (intentional) | [#2](https://github.com/jhnnnp/K-SecOps/pull/2) | `devsecops-gate` | failure | **FAIL** |
 
 - PASSED run: https://github.com/jhnnnp/K-SecOps/actions/runs/28296390825/job/83836946875
