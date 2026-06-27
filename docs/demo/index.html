@@ -12,10 +12,19 @@
       <p class="text-xs tracking-widest text-slate-500">K-SecOps · Interactive Demo</p>
       <h1 class="text-3xl font-semibold text-white">시나리오 데모 허브</h1>
       <p class="text-sm text-slate-400 max-w-3xl leading-relaxed">
-        버튼을 누르면 시나리오에 맞게 <strong class="text-slate-200">코드가 자동 변경</strong>되고
-        커밋 → push → PR → SecOps Gate CI → <strong class="text-slate-200">대시보드</strong>까지 이어집니다.
-        아래 <strong class="text-slate-200">실행 현황</strong> 패널에서 각 단계를 실시간으로 확인할 수 있습니다.
+        시나리오마다 흐름이 다릅니다.
+        <strong class="text-sky-300">PR (5·6)</strong>은 코드 변경 → <strong class="text-slate-200">commit → push → PR</strong> → GitHub CI → 대시보드입니다.
+        <strong class="text-emerald-300">Local (2·3)</strong>은 내 PC에서만 gate를 돌리며 <strong class="text-slate-200">GitHub push/PR 없음</strong>.
       </p>
+
+    <section class="rounded-xl border border-slate-800 bg-slate-900/40 px-5 py-4 text-sm text-slate-300 space-y-2">
+      <p class="font-medium text-white">어떤 버튼이 commit · push · PR 을 하나?</p>
+      <ul class="list-disc pl-5 space-y-1 text-slate-400">
+        <li><strong class="text-sky-300">Scenario 5 · PR PASS</strong> — <code class="text-slate-300">dummy-infra/README.md</code> 변경 → commit → push → PR → CI 초록</li>
+        <li><strong class="text-sky-300">Scenario 6 · PR FAIL</strong> — <code class="text-slate-300">src/main.py</code> 예시 키 추가 → commit → push → PR → CI 빨강 · merge 차단</li>
+        <li><strong class="text-emerald-300">Scenario 2·3</strong> — 로컬 <code class="text-slate-300">ci_gate.py</code> 만 실행 (commit/push/PR 없음, 빠른 UI 확인용)</li>
+      </ul>
+    </section>
     </header>
 
     <section id="progress-panel" class="hidden rounded-2xl border border-slate-700 bg-slate-900/80 p-5 space-y-4">
@@ -67,10 +76,18 @@
 
   <script>
     const SCENARIOS = [
-      { id: "2", title: "Local PASS gate", kind: "local", desc: "main 기준 ci_gate → PASS 대시보드 (즉시)" },
-      { id: "3", title: "Local FAIL gate", kind: "local", desc: "src/ 시크릿 주입 → FAIL 대시보드 (즉시)" },
-      { id: "5", title: "PR PASS", kind: "pr", desc: "docs 변경 → push → PR → CI 초록 → artifact 대시보드" },
-      { id: "6", title: "PR FAIL", kind: "pr", desc: "src/ 예시 키 → push → PR → CI 빨강 → merge 차단" },
+      { id: "2", title: "Local PASS gate", kind: "local",
+        desc: "main 기준 ci_gate → PASS 대시보드 (즉시)",
+        flow: "로컬 gate만 · commit/push/PR 없음" },
+      { id: "3", title: "Local FAIL gate", kind: "local",
+        desc: "src/ 시크릿 주입 → FAIL 대시보드 (즉시)",
+        flow: "로컬 gate만 · commit/push/PR 없음" },
+      { id: "5", title: "PR PASS", kind: "pr",
+        desc: "docs 변경 → 자동 commit → push → PR → CI 초록",
+        flow: "commit → push → PR → SecOps Gate CI" },
+      { id: "6", title: "PR FAIL", kind: "pr",
+        desc: "src/ 예시 키 → 자동 commit → push → PR → merge 차단",
+        flow: "commit → push → PR → SecOps Gate CI" },
     ];
 
     const grid = document.getElementById("scenario-grid");
@@ -82,15 +99,18 @@
 
     function renderCards() {
       grid.innerHTML = SCENARIOS.map(s => `
-        <article class="rounded-xl border border-slate-800 bg-slate-900/60 p-5 flex flex-col gap-3">
+        <article class="rounded-xl border ${s.kind === "pr" ? "border-sky-900/60" : "border-slate-800"} bg-slate-900/60 p-5 flex flex-col gap-3">
           <div>
-            <p class="text-xs uppercase tracking-wider text-slate-500">Scenario ${s.id} · ${s.kind}</p>
+            <p class="text-xs uppercase tracking-wider ${s.kind === "pr" ? "text-sky-500" : "text-emerald-600"}">
+              Scenario ${s.id} · ${s.kind === "pr" ? "GitHub PR" : "Local only"}
+            </p>
             <h3 class="mt-1 text-lg font-medium text-white">${s.title}</h3>
             <p class="mt-2 text-sm text-slate-400">${s.desc}</p>
+            <p class="mt-2 rounded-md bg-slate-950/60 px-2 py-1 text-xs font-mono ${s.kind === "pr" ? "text-sky-300" : "text-emerald-400"}">${s.flow}</p>
           </div>
           <button data-id="${s.id}" class="scenario-run mt-auto rounded-lg px-4 py-2 text-sm font-medium transition
             ${s.kind === "pr" ? "bg-sky-600 hover:bg-sky-500 text-white" : "bg-emerald-700 hover:bg-emerald-600 text-white"}">
-            ${isHubServer ? "Run now" : (s.kind === "pr" ? "Trigger on GitHub" : "Local only")}
+            ${isHubServer ? (s.kind === "pr" ? "Run PR pipeline" : "Run local gate") : (s.kind === "pr" ? "Trigger on GitHub" : "Local only")}
           </button>
         </article>
       `).join("");
