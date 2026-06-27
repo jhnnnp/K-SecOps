@@ -42,9 +42,20 @@ jobs:
           SECOPS_INFRA_TARGETS: "dummy-infra,Dockerfile"
           SECOPS_TARGET: dummy-infra
           SECOPS_AWS_LIVE: "0"
-          # Optional live AWS scan (set repository secrets: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
-          # SECOPS_AWS_LIVE: ${{ secrets.AWS_ACCESS_KEY_ID != '' && '1' || '0' }}
         run: python scripts/ci_gate.py
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: go.mod
+
+      - name: SecOps alert worker (Go)
+        if: always() && steps.gate.outcome == 'failure'
+        env:
+          SECOPS_ALERT_WEBHOOK: ${{ secrets.SECOPS_ALERT_WEBHOOK }}
+          SECOPS_ALERT_FORMAT: slack
+        run: go run ./cmd/alert-worker
 
       - name: Upload audit reports
         if: always()
@@ -54,6 +65,7 @@ jobs:
           path: |
             reports/CI_AUDIT_REPORT.md
             reports/CI_SUMMARY.md
+            reports/GATE_RESULT.json
 
       - name: Post PR summary comment
         if: github.event_name == 'pull_request' && always()

@@ -1,19 +1,34 @@
-# AWS Live Scan (boto3)
+# AWS Live Scan (boto3) — Cloud Asset Diagnosis
 
-JD **「AWS 이해와 경험」** 방어용 — 실제 AWS API로 S3 PublicAccessBlock을 조회합니다.
-
-로컬 policy JSON 분석(`dummy-infra/aws/*.json`)과 **별도**로, live scan은 **본인 AWS 프리티어 계정**에서 1회 실행 후 결과를 스크린샷으로 보관하세요.
+JD **「AWS 이해와 경험」** 방어용. 로컬 JSON fixture는 **회귀 테스트**, live scan은 **실제 클라우드 자산 진단**입니다.
 
 ---
 
-## 1. IAM ReadOnly 유저 생성
+## Architecture
 
-AWS Console → IAM → Users → Create user
+| Mode | Trigger | Data source | Use case |
+|------|---------|-------------|----------|
+| **Local** | default / CI | `dummy-infra/aws/*.json` | deterministic regression |
+| **Live** | `SECOPS_AWS_LIVE=1` + credentials | **AWS API (boto3)** | real account misconfiguration |
 
-- User name: `secops-readonly-demo`
-- Attach policy: **`ReadOnlyAccess`** (또는 최소 S3 `ListAllMyBuckets`, `GetPublicAccessBlock`)
+Live findings are tagged `source=boto3` in reports and gate summary.
 
-Access key 발급 → **`.env`에만 저장, Git에 커밋 금지**
+---
+
+## Live checks (boto3)
+
+| Asset | API | Finding |
+|-------|-----|---------|
+| S3 buckets | `s3.list_buckets`, `get_public_access_block` | `aws.s3_public_access` (HIGH) |
+| IAM customer policies | `iam.list_policies`, `get_policy_version` | `aws.iam_overprivileged` (CRITICAL) |
+| IAM inline role policies | `iam.list_roles`, `get_role_policy` | `aws.iam_overprivileged` (CRITICAL) |
+
+---
+
+## Setup (ReadOnly IAM)
+
+1. AWS Console → IAM → user `secops-readonly-demo`
+2. Attach **`ReadOnlyAccess`** (or custom: `s3:List*`, `s3:GetPublicAccessBlock`, `iam:List*`, `iam:Get*`)
 
 ```bash
 export AWS_ACCESS_KEY_ID=AKIA...
@@ -24,7 +39,7 @@ export SECOPS_AWS_LIVE=1
 
 ---
 
-## 2. Live scan 실행
+## Run
 
 ```bash
 cd kakao
@@ -36,45 +51,33 @@ from tools.aws_auditor import audit_aws_config
 r = audit_aws_config('dummy-infra', live_scan=True)
 print(f'live={r.live_scan} findings={len(r.findings)} errors={r.errors}')
 for f in r.findings:
-    print(f'  [{f.severity}] {f.finding_type} @ {f.resource} ({f.source})')
+    print(f'  [{f.severity}] {f.finding_type} @ {f.resource} source={f.source}')
 "
 ```
 
-또는:
+Full pipeline with live AWS:
 
 ```bash
-PYTHONPATH=src SECOPS_AWS_LIVE=1 python3 scripts/run_demo.py
+PYTHONPATH=src SECOPS_AWS_LIVE=1 python3 scripts/ci_gate.py
 ```
 
 ---
 
-## 3. 무엇을 검사하나
+## Interview pitch
 
-| Check | API | Finding |
-|-------|-----|---------|
-| S3 PublicAccessBlock 4종 미적용 | `s3.get_public_access_block` | `aws.s3_public_access` (HIGH, source=boto3) |
-
-Credentials 없으면 graceful skip: `errors[]`에 `"AWS credentials not configured"`.
+> "Fixture JSON proves the mapper locally. Live mode uses boto3 ReadOnly to scan **real S3 PublicAccessBlock and IAM wildcard policies** in my AWS account. Findings appear as `source=boto3` in the Lab report."
 
 ---
 
-## 4. 면접 멘트
+## CI note
 
-> "정적 IAM/S3 policy JSON 분석에 더해, boto3로 실제 계정의 S3 PublicAccessBlock을 조회합니다. CI 기본값은 live off이고, 로컬/스테이징에서 ReadOnly credentials로 dynamic misconfiguration scan을 수행합니다."
+Default CI keeps `SECOPS_AWS_LIVE=0` (no credentials required).  
+Optional: set repository secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, enable live in workflow.
 
----
-
-## 5. 증거물
-
-터미널 출력 또는 리포트 스크린샷 → `docs/assets/aws-live-scan.png`
-
-**주의:** live finding이 baseline에 없으면 CI gate FAIL. CI workflow는 `SECOPS_AWS_LIVE=0` 유지.
+Live findings **outside baseline** will fail the gate — use a dedicated demo account or extend `secops-baseline.json`.
 
 ---
 
-## 6. (선택) GitHub Actions live scan
+## Evidence
 
-Repository secrets에 `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` 설정 후  
-`secops-gate.yml`에서 `SECOPS_AWS_LIVE` 주석 해제.
-
-프로덕션 레포에서는 ReadOnly + baseline allowlist 필수.
+Save terminal output or report excerpt with `source=boto3` lines to `docs/assets/aws-live-scan.png` (optional).

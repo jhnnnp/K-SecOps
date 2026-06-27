@@ -5,7 +5,8 @@
 ![MCP](https://img.shields.io/badge/Protocol-MCP-512BD4?style=flat-square)
 ![ISMS-P](https://img.shields.io/badge/Compliance-ISMS--P-1565C0?style=flat-square)
 ![EFT](https://img.shields.io/badge/Compliance-전자금융-E65100?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-43_passing-388E3C?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-45_passing-388E3C?style=flat-square)
+![Go](https://img.shields.io/badge/Go-1.22-alert_worker-00ADD8?style=flat-square&logo=go&logoColor=white)
 ![CI](https://img.shields.io/badge/CI-SecOps_Gate-2088FF?style=flat-square&logo=githubactions&logoColor=white)
 
 > **Deterministic Python DevSecOps pipeline** — Trivy/Checkov/boto3 scan, ISMS-P·전자금융 Lab report, PR merge gate. MCP is the optional agent interface, not the security engine.
@@ -122,6 +123,12 @@ Step-by-step: **[docs/CI_EVIDENCE.md](./docs/CI_EVIDENCE.md)**
 
 **Not:** 24/7 SIEM, commercial WAF/EPP operation, or LLM-driven compliance judgment.
 
+### Secret Architecture (Envelo lineage)
+
+1. **Detect** — CI repo-wide `audit_secrets` blocks plaintext keys in `src/` (1st line of defense).
+2. **Prescribe** — Lab report `recommended_action` maps to **OPAQUE + E2EE Zero-Knowledge Vault** (Envelo-style): no env hardcoding, runtime attested fetch only.
+3. **Operate** — Go alert-worker notifies SecOps on gate FAIL (2nd line: human visibility beyond PR comments).
+
 ---
 
 ## Pipeline Steps
@@ -132,6 +139,7 @@ Step-by-step: **[docs/CI_EVIDENCE.md](./docs/CI_EVIDENCE.md)**
 4. **AWS config audit** — IAM/S3 policy + optional boto3 live
 5. **Compliance report** — ISMS-P / EFT Markdown
 6. **CI gate** — block merge on new secrets / critical misconfigs
+7. **SecOps alert** — Go worker → Slack/Discord webhook on FAIL
 
 ```bash
 # Local gate (same as CI)
@@ -206,6 +214,16 @@ PYTHONPATH=src python3 -m pytest -q
 
 AWS live scan: **[docs/AWS_LIVE_SCAN.md](./docs/AWS_LIVE_SCAN.md)**
 
+### SecOps Alert (Go worker)
+
+```bash
+# After ci_gate.py (writes reports/GATE_RESULT.json)
+export SECOPS_ALERT_WEBHOOK="https://hooks.slack.com/services/..."
+go run ./cmd/alert-worker
+```
+
+CI runs the worker automatically when the gate **FAILs** (requires `SECOPS_ALERT_WEBHOOK` repository secret).
+
 ---
 
 ## dummy-infra Scenarios
@@ -233,9 +251,10 @@ AWS live scan: **[docs/AWS_LIVE_SCAN.md](./docs/AWS_LIVE_SCAN.md)**
 
 | Phase | Item |
 |-------|------|
-| Now | GitHub PR PASSED/FAILED screenshots ([CI_EVIDENCE.md](./docs/CI_EVIDENCE.md)) |
-| Next | AWS ReadOnly live scan evidence ([AWS_LIVE_SCAN.md](./docs/AWS_LIVE_SCAN.md)) |
-| Post-MVP | Scanner worker in **Go** for performance; OPA/K8s admission; full 101-control import |
+| Done | Go alert-worker + webhook on gate FAIL |
+| Done | AWS live boto3 S3 + IAM scan (`source=boto3`) |
+| Now | GitHub PR PASSED/FAILED evidence (auto-sync) |
+| Post-MVP | Full 101-control import, OPA/K8s admission |
 
 ---
 
@@ -243,6 +262,8 @@ AWS live scan: **[docs/AWS_LIVE_SCAN.md](./docs/AWS_LIVE_SCAN.md)**
 
 ```text
 kakao/
+├── cmd/alert-worker/main.go
+├── go.mod
 ├── Dockerfile
 ├── requirements.txt
 ├── .github/workflows/secops-gate.yml

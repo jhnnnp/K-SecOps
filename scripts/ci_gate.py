@@ -23,6 +23,7 @@ from tools.secret_auditor import audit_secrets  # noqa: E402
 BASELINE_PATH = ROOT / "config" / "secops-baseline.json"
 REPORT_PATH = ROOT / "reports" / "CI_AUDIT_REPORT.md"
 SUMMARY_PATH = ROOT / "reports" / "CI_SUMMARY.md"
+GATE_RESULT_PATH = ROOT / "reports" / "GATE_RESULT.json"
 
 
 @dataclass
@@ -65,9 +66,24 @@ def main() -> int:
         secrets_target=secrets_target,
     )
     SUMMARY_PATH.write_text(summary, encoding="utf-8")
+    _write_gate_result(result, secrets_target=secrets_target)
 
     print(summary)
     return 0 if result.passed else 1
+
+
+def _write_gate_result(result: GateResult, *, secrets_target: str) -> None:
+    payload = {
+        "passed": result.passed,
+        "reasons": result.reasons,
+        "summary_path": str(SUMMARY_PATH.relative_to(ROOT)),
+        "report_path": str(REPORT_PATH.relative_to(ROOT)),
+        "repository": os.getenv("GITHUB_REPOSITORY", ""),
+        "ref": os.getenv("GITHUB_REF", ""),
+        "secrets_target": secrets_target,
+    }
+    GATE_RESULT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    GATE_RESULT_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def _parse_targets(raw: str) -> list[str]:

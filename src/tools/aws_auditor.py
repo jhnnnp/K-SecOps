@@ -23,7 +23,8 @@ def audit_aws_config(target_path: str = "dummy-infra", live_scan: bool | None = 
     """
     Scan AWS-related misconfigurations in sandboxed policy files.
 
-    When live_scan is True (or SECOPS_AWS_LIVE=1) and credentials exist, also checks S3 public access via boto3.
+    When live_scan is True (or SECOPS_AWS_LIVE=1) and credentials exist, queries live AWS via boto3
+    (S3 PublicAccessBlock, IAM wildcard policies).
     """
     resolved = resolve_sandbox_target(target_path)
     relative_target = relative_project_path(resolved)
@@ -125,36 +126,14 @@ def _scan_live_aws() -> tuple[list[AwsFinding], list[str]]:
             return [], ["AWS credentials not configured; skip live AWS scan"]
 
         s3 = session.client("s3")
-        for bucket in s3.list_buckets().get("Buckets", []):
-            name = bucket["Name"]
-            try:
-                public_block = s3.get_public_access_block(Bucket=name)
-                config = public_block.get("PublicAccessBlockConfiguration", {})
-                if not all(
-                    config.get(key, False)
-                    for key in (
-                        "BlockPublicAcls",
-                        "IgnorePublicAcls",
-                        "BlockPublicPolicy",
-                        "RestrictPublicBuckets",
-                    )
-                ):
-                    findings.append(
-                        AwsFinding(
-                            id=f"AWS-LIVE-S3-PAB-{name}",
-                            finding_type="aws.s3_public_access",
-                            resource=f"aws:s3://{name}",
-                            line=None,
-                            title="S3 bucket public access block incomplete",
-                            description="Live scan detected weak S3 PublicAccessBlockConfiguration.",
-                            severity="HIGH",
-                            source="boto3",
-                        )
-                    )
-            except ClientError as exc:
-                error_code = exc.response.get("Error", {}).get("Code", "")
-                if error_code not in {"NoSuchPublicAccessBlockConfiguration", "AccessDenied"}:
-                    errors.append(f"S3 PublicAccessBlock check failed for {name}: {error_code}")
+        iam = session.client("iam")
+
+        s3_findings, s3_errors = _scan_live_s3(s3)
+        iam_findings, iam_errors = _scan_live_iam(iam)
+        findings.extend(s3_findings)
+        findings.extend(iam_findings)
+        errors.extend(s3_errors)
+        errors.extend(iam_errors)
 
     except NoCredentialsError:
         errors.append("AWS credentials not configured; skip live AWS scan")
@@ -162,6 +141,139 @@ def _scan_live_aws() -> tuple[list[AwsFinding], list[str]]:
         errors.append(f"Live AWS scan failed: {exc}")
 
     return findings, errors
+
+
+def _scan_live_s3(s3) -> tuple[list[AwsFinding], list[str]]:
+    findings: list[AwsFinding] = []
+    errors: list[str] = []
+
+    from botocore.exceptions import ClientError
+
+    for bucket in s3.list_buckets().get("Buckets", []):
+        name = bucket["Name"]
+        try:
+            public_block = s3.get_public_access_block(Bucket=name)
+            config = public_block.get("PublicAccessBlockConfiguration", {})
+            if not all(
+                config.get(key, False)
+                for key in (
+                    "BlockPublicAcls",
+                    "IgnorePublicAcls",
+                    "BlockPublicPolicy",
+                    "RestrictPublicBuckets",
+                )
+            ):
+                findings.append(
+                    AwsFinding(
+                        id=f"AWS-LIVE-S3-PAB-{name}",
+                        finding_type="aws.s3_public_access",
+                        resource=f"aws:s3://{name}",
+                        line=None,
+                        title="S3 bucket public access block incomplete",
+                        description="Live boto3 scan: weak S3 PublicAccessBlockConfiguration.",
+                        severity="HIGH",
+                        source="boto3",
+                    )
+                )
+        except ClientError as exc:
+            error_code = exc.response.get("Error", {}).get("Code", "")
+            if error_code not in {"NoSuchPublicAccessBlockConfiguration", "AccessDenied"}:
+                errors.append(f"S3 PublicAccessBlock check failed for {name}: {error_code}")
+
+    return findings, errors
+
+
+def _scan_live_iam(iam) -> tuple[list[AwsFinding], list[str]]:
+    findings: list[AwsFinding] = []
+    errors: list[str] = []
+
+    from botocore.exceptions import ClientError
+
+    paginator = iam.get_paginator("list_policies")
+    for page in paginator.paginate(Scope="Local", OnlyAttached=True):
+        for policy in page.get("Policies", []):
+            arn = policy.get("Arn", "")
+            version_id = policy.get("DefaultVersionId", "")
+            if not arn or not version_id:
+                continue
+            try:
+                document = iam.get_policy_version(PolicyArn=arn, VersionId=version_id)[
+                    "PolicyVersion"
+                ]["Document"]
+            except ClientError as exc:
+                code = exc.response.get("Error", {}).get("Code", "")
+                errors.append(f"IAM get_policy_version failed for {arn}: {code}")
+                continue
+
+            if policy_document_has_admin_wildcard(document):
+                findings.append(
+                    AwsFinding(
+                        id=f"AWS-LIVE-IAM-WILDCARD-{policy.get('PolicyName', 'policy')}",
+                        finding_type="aws.iam_overprivileged",
+                        resource=arn,
+                        line=None,
+                        title="IAM policy allows Action:* on Resource:*",
+                        description="Live boto3 scan: customer-managed IAM policy has admin wildcard.",
+                        severity="CRITICAL",
+                        source="boto3",
+                    )
+                )
+
+    role_paginator = iam.get_paginator("list_roles")
+    for page in role_paginator.paginate():
+        for role in page.get("Roles", []):
+            role_name = role.get("RoleName", "")
+            if not role_name:
+                continue
+            try:
+                inline = iam.list_role_policies(RoleName=role_name).get("PolicyNames", [])
+            except ClientError as exc:
+                code = exc.response.get("Error", {}).get("Code", "")
+                errors.append(f"IAM list_role_policies failed for {role_name}: {code}")
+                continue
+
+            for policy_name in inline:
+                try:
+                    document = iam.get_role_policy(RoleName=role_name, PolicyName=policy_name)[
+                        "PolicyDocument"
+                    ]
+                except ClientError:
+                    continue
+                if policy_document_has_admin_wildcard(document):
+                    resource = f"aws:iam:role/{role_name}/inline/{policy_name}"
+                    findings.append(
+                        AwsFinding(
+                            id=f"AWS-LIVE-IAM-INLINE-{role_name}-{policy_name}",
+                            finding_type="aws.iam_overprivileged",
+                            resource=resource,
+                            line=None,
+                            title="Inline IAM policy allows Action:* on Resource:*",
+                            description="Live boto3 scan: inline role policy has admin wildcard.",
+                            severity="CRITICAL",
+                            source="boto3",
+                        )
+                    )
+
+    return findings, errors
+
+
+def policy_document_has_admin_wildcard(document: dict[str, Any]) -> bool:
+    statements = document.get("Statement", [])
+    if isinstance(statements, dict):
+        statements = [statements]
+
+    for statement in statements:
+        if statement.get("Effect") != "Allow":
+            continue
+        actions = statement.get("Action", [])
+        resources = statement.get("Resource", [])
+        if isinstance(actions, str):
+            actions = [actions]
+        if isinstance(resources, str):
+            resources = [resources]
+        if "*" in actions and "*" in resources:
+            return True
+    return False
 
 
 def _dedupe(findings: list[AwsFinding]) -> list[AwsFinding]:

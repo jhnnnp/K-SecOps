@@ -9,4 +9,5 @@ build/
 reports/TEST_*.md
 reports/AUDIT_*.md
 reports/CI_*.md
+reports/GATE_RESULT.json
 !reports/SAMPLE_AUDIT_REPORT.md

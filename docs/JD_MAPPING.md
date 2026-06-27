@@ -92,7 +92,10 @@ A: 이중 타겟. `audit_secrets`는 CI에서 레포 전역(`.`) 스캔 — `src
 A: `config/secops-baseline.json` allowlist. 알려진 데모 finding은 통과, `src/` 등 샌드박스 밖 시크릿·baseline 외 CRITICAL은 merge 차단.
 
 **Q: AWS live scan은?**  
-A: `SECOPS_AWS_LIVE=1` + credentials 시 boto3로 S3 PublicAccessBlock 검사. CI 기본값은 로컬 policy JSON만.
+A: `SECOPS_AWS_LIVE=1` + ReadOnly credentials → boto3로 **S3 PublicAccessBlock + IAM wildcard policy** API 조회. finding은 `source=boto3`. fixture JSON은 회귀 테스트용.
+
+**Q: Go-lang / Alerting?**  
+A: `cmd/alert-worker` (Go)가 gate FAIL 시 Slack/Discord webhook 알림. Python gate + Go alert worker 분리.
 
 **Q: 101통제 전체 커버?**  
 A: MVP 25개 통제, schema 동일 — bulk import + RAG hybrid 확장 설계.
