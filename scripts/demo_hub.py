@@ -163,12 +163,31 @@ app.mount("/live", StaticFiles(directory=DEMO_LIVE_DIR, html=True), name="live")
 
 
 def main() -> None:
+    import argparse
+    import socket
+
     import uvicorn
 
+    parser = argparse.ArgumentParser(description="K-SecOps interactive demo hub")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8765)
+    args = parser.parse_args()
+
+    def port_in_use(host: str, port: int) -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            return sock.connect_ex((host, port)) == 0
+
+    port = args.port
+    if port_in_use(args.host, port):
+        print(f"Port {port} is already in use.")
+        print(f"  Stop it: lsof -ti :{port} | xargs kill -9")
+        print(f"  Or run:  python3 scripts/demo_hub.py --port {port + 1}")
+        raise SystemExit(1)
+
     DEMO_LIVE_DIR.mkdir(parents=True, exist_ok=True)
-    print("K-SecOps Demo Hub → http://127.0.0.1:8765")
+    print(f"K-SecOps Demo Hub → http://{args.host}:{port}")
     print("PR scenarios require: gh auth login")
-    uvicorn.run(app, host="127.0.0.1", port=8765, log_level="info")
+    uvicorn.run(app, host=args.host, port=port, log_level="info")
 
 
 if __name__ == "__main__":
