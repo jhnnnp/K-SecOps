@@ -8,38 +8,18 @@ import os
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON = sys.executable
 ENV = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
 
-# AWS documentation example key — built at runtime so repo-wide scan does not flag this file.
-_DEMO_FAIL_KEY = "AKIA" + "IOSFODNN7EXAMPLE"
-_DEMO_FAIL_LINE = f'_DEMO_CI_FAIL_KEY = "{_DEMO_FAIL_KEY}"  # demo-only: remove after CI evidence\n'
-_DEMO_FAIL_MARKER = "demo-only: remove after CI evidence"
-
-
-@dataclass(frozen=True)
-class Scenario:
-    number: str
-    title: str
-    description: str
-
-
-SCENARIOS: list[Scenario] = [
-    Scenario("1", "Local — demo report", "dummy-infra 스캔 → reports/SAMPLE_AUDIT_REPORT.md"),
-    Scenario("2", "Local — CI gate", "repo 전체 gate (ci_gate.py) → PASSED/FAILED"),
-    Scenario("3", "Local — FAIL simulation", "src/ 시크릿 있을 때 gate 차단 로직 확인"),
-    Scenario("4", "Local — all", "1 → 2 → 3 순서 실행"),
-    Scenario("5", "PR — PASS demo", "브랜치 push + PR 생성 (SecOps Gate 초록 예상)"),
-    Scenario("6", "PR — FAIL demo", "src/에 예시 키 추가 + PR (merge 차단 예상)"),
-    Scenario("7", "PR — sync evidence", "GitHub API로 README CI 증거 동기화"),
-    Scenario("8", "Actions — SecOps Gate", "workflow_dispatch로 원격 gate 실행"),
-    Scenario("9", "Actions — Sync CI Evidence", "workflow_dispatch로 증거 동기화"),
-]
+sys.path.insert(0, str(ROOT / "scripts"))
+from demo_scenarios import (  # noqa: E402
+    SCENARIOS,
+    get_scenario,
+    run_full_pr_pipeline,
+)
 
 
 def main() -> int:
@@ -82,11 +62,9 @@ def main() -> int:
         return 1
 
     print(f"\n== Scenario {args.scenario} ==", flush=True)
-    for item in SCENARIOS:
-        if item.number == args.scenario:
-            print(item.title, flush=True)
-            print(item.description, flush=True)
-            break
+    scenario = get_scenario(args.scenario)
+    print(scenario.title, flush=True)
+    print(scenario.description, flush=True)
     print(flush=True)
 
     try:
@@ -112,6 +90,7 @@ def _print_menu() -> None:
         print(f"  {item.number}. {item.title}")
         print(f"     {item.description}")
     print("\n예: python3 scripts/run_scenario.py 2")
+    print("    python3 scripts/demo_hub.py   # 웹 UI")
     print("    python3 scripts/run_scenario.py 6 --dry-run")
 
 
@@ -146,89 +125,30 @@ def _run_local_all(_dry_run: bool = False) -> int:
 
 
 def _run_pr_pass(*, dry_run: bool) -> int:
-    _require_gh(dry_run)
-    branch = "demo/ci-pass"
-    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    readme = ROOT / "dummy-infra" / "README.md"
-
-    commands = [
-        ["git", "checkout", "main"],
-        ["git", "pull", "--ff-only", "origin", "main"],
-        ["git", "checkout", "-B", branch],
-        ["git", "commit"],
-        ["git", "push", "-u", "origin", branch],
-        ["gh", "pr", "create"],
-    ]
-    if dry_run:
-        print("[dry-run] would update dummy-infra/README.md with ci-pass-demo comment")
-        _print_commands(commands)
-        return 0
-
-    _ensure_clean_enough_for_pr()
-    _run_git("checkout", "main")
-    _run_git_optional("pull", "--ff-only", "origin", "main")
-    _run_git("checkout", "-B", branch)
-
-    original = readme.read_text(encoding="utf-8")
-    if f"<!-- ci-pass-demo:" not in original:
-        readme.write_text(original.rstrip() + f"\n\n<!-- ci-pass-demo: {stamp} -->\n", encoding="utf-8")
-
-    _run_git("add", "dummy-infra/README.md")
-    _run_git("commit", "-m", f"docs: ci pass demo ({stamp})")
-    _run_git("push", "--force-with-lease", "-u", "origin", branch)
-
-    pr_url = _gh_pr_create(
-        branch=branch,
-        title="demo: CI gate PASS",
-        body="SecOps Gate PASS demo. Safe docs-only change.",
-    )
-    print(f"\nPR opened: {pr_url}")
-    print("GitHub → PR → Checks 탭에서 SecOps Gate 초록 확인")
-    return 0
+    return _run_pr_demo("5", dry_run=dry_run)
 
 
 def _run_pr_fail(*, dry_run: bool) -> int:
-    _require_gh(dry_run)
-    branch = "demo/ci-fail-secret"
-    main_py = ROOT / "src" / "main.py"
+    return _run_pr_demo("6", dry_run=dry_run)
 
+
+def _run_pr_demo(number: str, *, dry_run: bool) -> int:
+    scenario = get_scenario(number)
     commands = [
-        ["git", "checkout", "main"],
-        ["git", "checkout", "-B", branch],
-        ["git", "commit"],
-        ["git", "push", "-u", "origin", branch],
-        ["gh", "pr", "create"],
+        ["python3", "scripts/demo_scenarios.py", "run-all", "--scenario", number],
     ]
     if dry_run:
-        print("[dry-run] would prepend demo fail key line to src/main.py")
+        print(f"[dry-run] branch={scenario.branch}")
         _print_commands(commands)
         return 0
 
-    _ensure_clean_enough_for_pr()
-    _run_git("checkout", "main")
-    _run_git_optional("pull", "--ff-only", "origin", "main")
-    _run_git("checkout", "-B", branch)
-
-    original = main_py.read_text(encoding="utf-8")
-    if _DEMO_FAIL_MARKER not in original:
-        main_py.write_text(_DEMO_FAIL_LINE + original, encoding="utf-8")
-
-    _run_git("add", "src/main.py")
-    _run_git("commit", "-m", "demo: intentional secret fail for CI evidence")
-    _run_git("push", "--force-with-lease", "-u", "origin", branch)
-
-    pr_url = _gh_pr_create(
-        branch=branch,
-        title="demo: CI gate FAIL (intentional secret)",
-        body=(
-            "Intentional AWS docs example key in src/main.py for SecOps Gate FAIL demo. "
-            "Do not merge."
-        ),
-    )
-    print(f"\nPR opened: {pr_url}")
-    print("GitHub → PR → Checks 탭에서 SecOps Gate 빨강 확인")
-    print("데모 후: main에서 src/main.py 데모 줄 제거, PR close")
-    return 0
+    _require_gh()
+    result = run_full_pr_pipeline(number)
+    print(f"\nPR: {result.get('pr_url', '')}")
+    print(f"Gate: {result.get('conclusion', '')}")
+    print(f"Dashboard: {result.get('dashboard', '')}")
+    print("웹 UI: python3 scripts/demo_hub.py → http://127.0.0.1:8765")
+    return 0 if result.get("conclusion") == "success" else 1
 
 
 def _run_sync_evidence(*, dry_run: bool) -> int:
@@ -283,7 +203,7 @@ def _print_local_outputs(paths: list[Path]) -> None:
             print(f"  - {path.relative_to(ROOT)} (not created)")
 
 
-def _require_gh(dry_run: bool) -> None:
+def _require_gh(dry_run: bool = False) -> None:
     if dry_run:
         return
     if shutil.which("gh") is None:
@@ -308,59 +228,6 @@ def _gh_token() -> str:
         check=True,
     )
     return result.stdout.strip()
-
-
-def _ensure_clean_enough_for_pr() -> None:
-    result = subprocess.run(
-        ["git", "status", "--porcelain"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    dirty = [line for line in result.stdout.splitlines() if line.strip()]
-    if dirty:
-        files = ", ".join(line[3:] for line in dirty[:5])
-        raise RuntimeError(
-            "커밋되지 않은 변경이 있습니다. PR 시나리오 전에 commit 또는 stash 하세요: "
-            + files
-        )
-
-
-def _run_git(*args: str) -> None:
-    subprocess.run(["git", *args], cwd=ROOT, check=True)
-
-
-def _run_git_optional(*args: str) -> None:
-    subprocess.run(["git", *args], cwd=ROOT, check=False)
-
-
-def _gh_pr_create(*, branch: str, title: str, body: str) -> str:
-    existing = subprocess.run(
-        ["gh", "pr", "list", "--head", branch, "--json", "url", "--jq", ".[0].url"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    url = existing.stdout.strip()
-    if url and url != "null":
-        print(f"기존 PR 재사용: {url}")
-        return url
-
-    subprocess.run(
-        ["gh", "pr", "create", "--base", "main", "--head", branch, "--title", title, "--body", body],
-        cwd=ROOT,
-        check=True,
-    )
-    created = subprocess.run(
-        ["gh", "pr", "view", branch, "--json", "url", "--jq", ".url"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return created.stdout.strip()
 
 
 def _print_commands(commands: list[list[str]]) -> None:

@@ -1,0 +1,54 @@
+{
+  "last_updated": "2026-06-27 17:41 UTC",
+  "active_scenario": "3",
+  "scenarios": {
+    "5": {
+      "scenario": "5",
+      "title": "PR — PASS demo",
+      "kind": "pr",
+      "branch": "demo/ci-pass",
+      "conclusion": "success",
+      "pr_url": "https://github.com/jhnnnp/K-SecOps/pull/1",
+      "run_url": "",
+      "head_sha": "",
+      "dashboard_path": "live/scenario-5.html",
+      "updated_at": "2026-06-27 17:41 UTC"
+    },
+    "6": {
+      "scenario": "6",
+      "title": "PR — FAIL demo",
+      "kind": "pr",
+      "branch": "demo/ci-fail-secret",
+      "conclusion": "failure",
+      "pr_url": "https://github.com/jhnnnp/K-SecOps/pull/2",
+      "run_url": "",
+      "head_sha": "",
+      "dashboard_path": "live/scenario-6.html",
+      "updated_at": "2026-06-27 17:41 UTC"
+    },
+    "2": {
+      "scenario": "2",
+      "title": "Local — CI gate PASS",
+      "kind": "local",
+      "branch": null,
+      "conclusion": "success",
+      "pr_url": "",
+      "run_url": "",
+      "head_sha": "",
+      "dashboard_path": "live/scenario-2.html",
+      "updated_at": "2026-06-27 17:41 UTC"
+    },
+    "3": {
+      "scenario": "3",
+      "title": "Local — FAIL simulation",
+      "kind": "local",
+      "branch": null,
+      "conclusion": "failure",
+      "pr_url": "",
+      "run_url": "",
+      "head_sha": "",
+      "dashboard_path": "live/scenario-3.html",
+      "updated_at": "2026-06-27 17:41 UTC"
+    }
+  }
+}

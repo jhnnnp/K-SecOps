@@ -1,0 +1,117 @@
+name: Demo Scenario
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: "PR demo scenario to run"
+        required: true
+        type: choice
+        options:
+          - "5"
+          - "6"
+  repository_dispatch:
+    types: [demo-scenario]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  run-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve scenario id
+        id: meta
+        run: |
+          SC="${{ inputs.scenario }}"
+          if [ -z "$SC" ]; then
+            SC="${{ github.event.client_payload.scenario }}"
+          fi
+          if [ -z "$SC" ]; then
+            echo "scenario input required" >&2
+            exit 1
+          fi
+          echo "scenario=$SC" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install GitHub CLI
+        run: |
+          type gh >/dev/null 2>&1 || sudo apt-get update && sudo apt-get install -y gh
+
+      - name: Apply scenario, push branch, open PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/demo_scenarios.py orchestrate \
+            --scenario "${{ steps.meta.outputs.scenario }}" \
+            --repository "${{ github.repository }}"
+
+      - name: Wait for SecOps Gate on PR
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/demo_scenarios.py wait-gate \
+            --scenario "${{ steps.meta.outputs.scenario }}" \
+            --timeout 900 | tee /tmp/gate.json
+          echo "run_id=$(python3 -c 'import json; print(json.load(open("/tmp/gate.json"))["run_id"])')" >> "$GITHUB_OUTPUT"
+          echo "run_url=$(python3 -c 'import json; print(json.load(open("/tmp/gate.json"))["run_url"])')" >> "$GITHUB_OUTPUT"
+          echo "conclusion=$(python3 -c 'import json; print(json.load(open("/tmp/gate.json"))["conclusion"])')" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$(python3 -c 'import json; print(json.load(open("/tmp/gate.json"))["head_sha"])')" >> "$GITHUB_OUTPUT"
+
+      - name: Download gate dashboard artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/demo_scenarios.py fetch-dashboard \
+            --run-id "${{ steps.gate.outputs.run_id }}" \
+            --output /tmp/demo-artifact
+
+      - name: Publish live demo dashboard
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="demo/ci-pass"
+          if [ "${{ steps.meta.outputs.scenario }}" = "6" ]; then
+            BRANCH="demo/ci-fail-secret"
+          fi
+          PR_URL="$(gh pr view "$BRANCH" --json url --jq .url)"
+          python3 scripts/demo_scenarios.py publish \
+            --scenario "${{ steps.meta.outputs.scenario }}" \
+            --source /tmp/demo-artifact \
+            --pr-url "$PR_URL" \
+            --run-url "${{ steps.gate.outputs.run_url }}" \
+            --conclusion "${{ steps.gate.outputs.conclusion }}" \
+            --head-sha "${{ steps.gate.outputs.head_sha }}"
+
+      - name: Commit and push live demo artifacts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout main
+          git pull --rebase origin main
+          git add docs/demo/
+          if git diff --staged --quiet; then
+            echo "No demo hub changes."
+          else
+            git commit -m "demo: publish scenario ${{ steps.meta.outputs.scenario }} live dashboard"
+            git push
+          fi
+
+      - name: Summary
+        run: |
+          echo "### Demo scenario ${{ steps.meta.outputs.scenario }} complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Gate: **${{ steps.gate.outputs.conclusion }}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Run: ${{ steps.gate.outputs.run_url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Live hub: docs/demo/index.html (GitHub Pages)" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>K-SecOps Demo Hub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+  <div class="mx-auto max-w-6xl px-4 py-8 space-y-8">
+    <header class="space-y-2">
+      <p class="text-xs tracking-widest text-slate-500">K-SecOps · Interactive Demo</p>
+      <h1 class="text-3xl font-semibold text-white">시나리오 데모 허브</h1>
+      <p class="text-sm text-slate-400 max-w-3xl leading-relaxed">
+        버튼을 누르면 시나리오에 맞게 <strong class="text-slate-200">코드가 자동 변경</strong>되고
+        커밋 → push → PR → SecOps Gate CI → <strong class="text-slate-200">대시보드</strong>까지 이어집니다.
+        로컬 허브(<code class="text-slate-300">demo_hub.py</code>) 또는 GitHub Actions에서 실행할 수 있습니다.
+      </p>
+    </header>
+
+    <section id="status-banner" class="hidden rounded-xl border border-slate-700 bg-slate-900/80 px-5 py-4 text-sm"></section>
+
+    <section class="grid gap-4 md:grid-cols-2" id="scenario-grid"></section>
+
+    <section class="space-y-3">
+      <div class="flex items-center justify-between gap-4">
+        <h2 class="text-lg font-semibold text-white">Live Dashboard</h2>
+        <p id="dashboard-meta" class="text-xs text-slate-500"></p>
+      </div>
+      <div class="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden">
+        <iframe id="dashboard-frame" title="SecOps Dashboard" class="w-full min-h-[720px] bg-white" src="about:blank"></iframe>
+      </div>
+    </section>
+
+    <footer class="text-xs text-slate-600 space-y-1">
+      <p>로컬 실행: <code class="text-slate-400">python3 scripts/demo_hub.py</code> → http://127.0.0.1:8765</p>
+      <p>GitHub Actions: Actions → Demo Scenario → Run workflow (5=PASS PR, 6=FAIL PR)</p>
+    </footer>
+  </div>
+
+  <script>
+    const SCENARIOS = [
+      { id: "2", title: "Local PASS gate", kind: "local", desc: "main 기준 ci_gate → PASS 대시보드 (즉시)" },
+      { id: "3", title: "Local FAIL gate", kind: "local", desc: "src/ 시크릿 주입 → FAIL 대시보드 (즉시)" },
+      { id: "5", title: "PR PASS", kind: "pr", desc: "docs 변경 → push → PR → CI 초록 → artifact 대시보드" },
+      { id: "6", title: "PR FAIL", kind: "pr", desc: "src/ 예시 키 → push → PR → CI 빨강 → merge 차단" },
+    ];
+
+    const grid = document.getElementById("scenario-grid");
+    const banner = document.getElementById("status-banner");
+    const frame = document.getElementById("dashboard-frame");
+    const meta = document.getElementById("dashboard-meta");
+    const isHubServer = location.hostname === "127.0.0.1" || location.hostname === "localhost";
+
+    function renderCards() {
+      grid.innerHTML = SCENARIOS.map(s => `
+        <article class="rounded-xl border border-slate-800 bg-slate-900/60 p-5 flex flex-col gap-3">
+          <div>
+            <p class="text-xs uppercase tracking-wider text-slate-500">Scenario ${s.id} · ${s.kind}</p>
+            <h3 class="mt-1 text-lg font-medium text-white">${s.title}</h3>
+            <p class="mt-2 text-sm text-slate-400">${s.desc}</p>
+          </div>
+          <button data-id="${s.id}" class="scenario-run mt-auto rounded-lg px-4 py-2 text-sm font-medium transition
+            ${s.kind === "pr" ? "bg-sky-600 hover:bg-sky-500 text-white" : "bg-emerald-700 hover:bg-emerald-600 text-white"}">
+            ${isHubServer ? "Run now" : (s.kind === "pr" ? "Trigger on GitHub" : "Local only")}
+          </button>
+        </article>
+      `).join("");
+
+      document.querySelectorAll(".scenario-run").forEach(btn => {
+        btn.addEventListener("click", () => runScenario(btn.dataset.id, btn));
+      });
+    }
+
+    async function runScenario(id, btn) {
+      if (!isHubServer) {
+        if (id === "5" || id === "6") {
+          window.open("https://github.com/jhnnnp/K-SecOps/actions/workflows/demo-scenario.yml", "_blank");
+          showBanner("GitHub Actions에서 Demo Scenario workflow를 실행하세요 (scenario=" + id + "). 완료 후 이 페이지를 새로고침하면 대시보드가 갱신됩니다.", "info");
+        } else {
+          showBanner("로컬 시나리오 " + id + " 는 `python3 scripts/demo_hub.py` 로 실행하세요.", "warn");
+        }
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "Running…";
+      showBanner("Scenario " + id + " 실행 중 — 코드 변경 · push · PR · CI 대기…", "info");
+
+      try {
+        const res = await fetch("/api/scenarios/" + id + "/run", { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || data.error || "run failed");
+
+        const jobId = data.job_id;
+        await pollJob(jobId, id);
+      } catch (err) {
+        showBanner("Error: " + err.message, "error");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Run now";
+      }
+    }
+
+    async function pollJob(jobId, scenarioId) {
+      for (let i = 0; i < 120; i++) {
+        const res = await fetch("/api/jobs/" + jobId);
+        const job = await res.json();
+        if (job.status === "running") {
+          showBanner(job.message || "Running…", "info");
+          await sleep(5000);
+          continue;
+        }
+        if (job.status === "failed") {
+          showBanner(job.error || "Failed", "error");
+          return;
+        }
+        showBanner("Scenario " + scenarioId + " complete — " + (job.conclusion || "done"), "success");
+        if (job.dashboard_url) {
+          frame.src = job.dashboard_url + "?t=" + Date.now();
+        }
+        if (job.pr_url) {
+          meta.innerHTML = `<a class="text-sky-400 hover:underline" href="${job.pr_url}" target="_blank">PR</a>` +
+            (job.run_url ? ` · <a class="text-sky-400 hover:underline" href="${job.run_url}" target="_blank">Actions run</a>` : "");
+        }
+        await refreshStatus();
+        return;
+      }
+      showBanner("Timed out waiting for job", "error");
+    }
+
+    async function refreshStatus() {
+      try {
+        const res = await fetch("status.json?t=" + Date.now());
+        if (!res.ok) return;
+        const status = await res.json();
+        const active = status.active_scenario;
+        if (!active || !status.scenarios[active]) return;
+        const entry = status.scenarios[active];
+        if (entry.dashboard_path && !frame.src.includes(entry.dashboard_path)) {
+          frame.src = entry.dashboard_path + "?t=" + Date.now();
+        }
+        const links = [];
+        if (entry.pr_url) links.push(`<a class="text-sky-400 hover:underline" href="${entry.pr_url}" target="_blank">PR</a>`);
+        if (entry.run_url) links.push(`<a class="text-sky-400 hover:underline" href="${entry.run_url}" target="_blank">CI run</a>`);
+        if (entry.head_sha) links.push(`<span class="font-mono">${entry.head_sha.slice(0, 7)}</span>`);
+        if (links.length) meta.innerHTML = links.join(" · ");
+      } catch (_) { /* ignore */ }
+    }
+
+    function showBanner(text, kind) {
+      const colors = {
+        info: "border-sky-800 text-sky-100",
+        success: "border-emerald-800 text-emerald-100",
+        warn: "border-amber-800 text-amber-100",
+        error: "border-rose-800 text-rose-100",
+      };
+      banner.className = "rounded-xl border px-5 py-4 text-sm " + (colors[kind] || colors.info);
+      banner.textContent = text;
+      banner.classList.remove("hidden");
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    renderCards();
+    refreshStatus();
+    setInterval(refreshStatus, 15000);
+  </script>
+</body>
+</html>

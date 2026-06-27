@@ -11,7 +11,7 @@
 
 > **Deterministic Python DevSecOps pipeline** — Semgrep SAST, Trivy SCA/infra, Checkov, boto3 scan, ISMS-P·전자금융 Lab report, PR merge gate. MCP is the optional agent interface, not the security engine.
 
-[Sample Report](./reports/SAMPLE_AUDIT_REPORT.md) · [Sample Dashboard (PASS)](./reports/SAMPLE_DASHBOARD.html) · [Sample Dashboard (FAIL)](./reports/SAMPLE_DASHBOARD_FAIL.html) · [Repository](https://github.com/jhnnnp/K-SecOps) · [Validation Sources](./docs/VALIDATION_SOURCES.md) · [CI Evidence Guide](./docs/CI_EVIDENCE.md) · [AWS Live Scan](./docs/AWS_LIVE_SCAN.md) · [JD Mapping](./docs/JD_MAPPING.md)
+[Sample Report](./reports/SAMPLE_AUDIT_REPORT.md) · [Sample Dashboard (PASS)](./reports/SAMPLE_DASHBOARD.html) · [Sample Dashboard (FAIL)](./reports/SAMPLE_DASHBOARD_FAIL.html) · [Demo Hub](./docs/demo/index.html) · [Repository](https://github.com/jhnnnp/K-SecOps) · [Validation Sources](./docs/VALIDATION_SOURCES.md) · [CI Evidence Guide](./docs/CI_EVIDENCE.md) · [AWS Live Scan](./docs/AWS_LIVE_SCAN.md) · [JD Mapping](./docs/JD_MAPPING.md)
 
 ---
 
@@ -179,6 +179,29 @@ python3 scripts/generate_sample_dashboards.py
 3. **README 샘플** — [`SAMPLE_DASHBOARD.html`](./reports/SAMPLE_DASHBOARD.html) / [`SAMPLE_DASHBOARD_FAIL.html`](./reports/SAMPLE_DASHBOARD_FAIL.html) 은 포트폴리오용 **고정 스냅샷** (PR artifact 를 열지 않아도 PASS/FAIL UI 확인 가능).
 
 성공 시나리오 → 성공 PR, 실패 시나리오 → 실패 PR. 엔진은 하나이고 **코드 상태 + 실행 위치(로컬/CI)** 만 다릅니다.
+
+### Demo Hub (버튼 → 자동 PR → Live Dashboard)
+
+**로컬 웹 UI (추천 — 시연용):**
+
+```bash
+python3 scripts/demo_hub.py
+# → http://127.0.0.1:8765
+```
+
+시나리오 버튼을 누르면:
+
+| 버튼 | 자동 동작 |
+|------|-----------|
+| Local PASS/FAIL (2·3) | 코드 패치 → `ci_gate.py` → 대시보드 즉시 표시 |
+| PR PASS/FAIL (5·6) | 패치 → **commit → push → PR** → SecOps Gate CI 대기 → artifact 다운 → **Live Dashboard** |
+
+**GitHub Actions (원격, 브라우저만):**
+
+Actions → **Demo Scenario** → Run workflow → scenario `5` 또는 `6`  
+완료 후 [`docs/demo/index.html`](./docs/demo/index.html) · GitHub Pages 에 Live Dashboard 게시.
+
+**GitHub Pages:** Settings → Pages → Source: GitHub Actions (`Demo Hub Pages` workflow)
 
 ---
 
