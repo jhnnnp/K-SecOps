@@ -17,6 +17,7 @@ os.environ.setdefault("SECOPS_REPO_SCAN", "1")
 
 from tools.aws_auditor import audit_aws_config  # noqa: E402
 from tools.compliance_report import generate_compliance_report  # noqa: E402
+from tools.dashboard_renderer import build_dashboard_context, write_secops_dashboard  # noqa: E402
 from tools.risk_score import compute_risk_score  # noqa: E402
 from tools.sast_auditor import audit_sast  # noqa: E402
 from tools.sarif_exporter import write_sarif  # noqa: E402
@@ -29,6 +30,7 @@ BASELINE_PATH = ROOT / "config" / "secops-baseline.json"
 REPORT_PATH = ROOT / "reports" / "CI_AUDIT_REPORT.md"
 SUMMARY_PATH = ROOT / "reports" / "CI_SUMMARY.md"
 GATE_RESULT_PATH = ROOT / "reports" / "GATE_RESULT.json"
+DASHBOARD_PATH = ROOT / "reports" / "SECOPS_DASHBOARD.html"
 SARIF_PATH = ROOT / "reports" / "sast.sarif"
 SBOM_PATH = ROOT / "reports" / "SBOM.json"
 
@@ -83,6 +85,24 @@ def main() -> int:
         sbom_new_count=len(sbom_drift.new_components),
     )
 
+    dashboard_ctx = build_dashboard_context(
+        passed=result.passed,
+        target_path=compliance_target,
+        risk=risk,
+        report_summary=report.summary,
+        gate_reasons=result.reasons,
+        scan=scan,
+        secrets=secrets,
+        sast=sast,
+        deps=deps,
+        aws=aws,
+        sbom_drift=sbom_drift,
+        violations=report.violations,
+        repository=os.getenv("GITHUB_REPOSITORY", ""),
+        ref=os.getenv("GITHUB_REF", ""),
+    )
+    write_secops_dashboard(DASHBOARD_PATH, dashboard_ctx)
+
     summary = _build_summary(
         result,
         scan,
@@ -122,6 +142,7 @@ def _write_gate_result(result: GateResult, *, secrets_target: str, risk, sbom_dr
         },
         "summary_path": str(SUMMARY_PATH.relative_to(ROOT)),
         "report_path": str(REPORT_PATH.relative_to(ROOT)),
+        "dashboard_path": str(DASHBOARD_PATH.relative_to(ROOT)),
         "repository": os.getenv("GITHUB_REPOSITORY", ""),
         "ref": os.getenv("GITHUB_REF", ""),
         "secrets_target": secrets_target,
@@ -283,6 +304,7 @@ def _build_summary(
         f"- Compliance violations: **{report.summary.total_violations}**",
         f"- SARIF: `{SARIF_PATH.relative_to(ROOT)}` | SBOM: `{SBOM_PATH.relative_to(ROOT)}`",
         f"- Report: `{report.report_path}`",
+        f"- Dashboard: `{DASHBOARD_PATH.relative_to(ROOT)}` (open in browser)",
         "",
     ]
 

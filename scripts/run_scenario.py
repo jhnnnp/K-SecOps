@@ -126,6 +126,7 @@ def _run_local_gate(_dry_run: bool = False) -> int:
             ROOT / "reports" / "CI_SUMMARY.md",
             ROOT / "reports" / "CI_AUDIT_REPORT.md",
             ROOT / "reports" / "GATE_RESULT.json",
+            ROOT / "reports" / "SECOPS_DASHBOARD.html",
         ],
     )
     return code

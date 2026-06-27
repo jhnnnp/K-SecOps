@@ -71,6 +71,7 @@ jobs:
             reports/CI_AUDIT_REPORT.md
             reports/CI_SUMMARY.md
             reports/GATE_RESULT.json
+            reports/SECOPS_DASHBOARD.html
             reports/SBOM.json
             reports/sast.sarif
 
@@ -95,6 +96,7 @@ jobs:
             let body = fs.readFileSync(summaryPath, 'utf8');
             const gateOutcome = '${{ steps.gate.outcome }}';
             body = `<!-- devsecops-gate -->\n**CI Gate:** ${gateOutcome.toUpperCase()}\n\n` + body;
+            body += '\n\n---\n**Visual dashboard:** download workflow artifact `devsecops-reports` → `reports/SECOPS_DASHBOARD.html` (open in browser).\n';
             if (body.length > 60000) {
               body = body.slice(0, 60000) + '\n\n...(truncated; see workflow artifact for full report)';
             }

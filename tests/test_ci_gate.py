@@ -43,6 +43,9 @@ def test_ci_gate_passes_on_baseline_dummy_infra():
     assert "SCA CVEs" in result.stdout
     assert "SBOM drift gate" in result.stdout
     assert "Risk Score" in result.stdout
+    dashboard = root / "reports" / "SECOPS_DASHBOARD.html"
+    assert dashboard.is_file(), "SECOPS_DASHBOARD.html should be generated"
+    assert "PASSED: Safe to Merge" in dashboard.read_text(encoding="utf-8")
 
 
 def test_gate_fails_on_secret_outside_fixture():
