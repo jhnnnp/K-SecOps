@@ -14,11 +14,38 @@
       <p class="text-sm text-slate-400 max-w-3xl leading-relaxed">
         버튼을 누르면 시나리오에 맞게 <strong class="text-slate-200">코드가 자동 변경</strong>되고
         커밋 → push → PR → SecOps Gate CI → <strong class="text-slate-200">대시보드</strong>까지 이어집니다.
-        로컬 허브(<code class="text-slate-300">demo_hub.py</code>) 또는 GitHub Actions에서 실행할 수 있습니다.
+        아래 <strong class="text-slate-200">실행 현황</strong> 패널에서 각 단계를 실시간으로 확인할 수 있습니다.
       </p>
     </header>
 
-    <section id="status-banner" class="hidden rounded-xl border border-slate-700 bg-slate-900/80 px-5 py-4 text-sm"></section>
+    <section id="progress-panel" class="hidden rounded-2xl border border-slate-700 bg-slate-900/80 p-5 space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p class="text-xs uppercase tracking-wider text-slate-500">실행 현황</p>
+          <h2 id="progress-title" class="text-lg font-medium text-white">—</h2>
+        </div>
+        <div class="text-right">
+          <p id="progress-pct" class="text-2xl font-bold text-sky-400">0%</p>
+          <p id="progress-message" class="text-xs text-slate-400">대기 중</p>
+        </div>
+      </div>
+      <div class="h-2 rounded-full bg-slate-800 overflow-hidden">
+        <div id="progress-bar" class="h-full bg-sky-500 transition-all duration-500" style="width:0%"></div>
+      </div>
+      <ol id="step-list" class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"></ol>
+      <div class="grid gap-4 md:grid-cols-2">
+        <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">연동 정보</p>
+          <dl id="detail-list" class="space-y-1 text-sm text-slate-300"></dl>
+        </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+          <p class="text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">실행 로그</p>
+          <pre id="log-view" class="max-h-40 overflow-y-auto text-xs text-slate-400 font-mono leading-relaxed whitespace-pre-wrap"></pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="status-banner" class="hidden rounded-xl border px-5 py-4 text-sm"></section>
 
     <section class="grid gap-4 md:grid-cols-2" id="scenario-grid"></section>
 
@@ -50,6 +77,7 @@
     const banner = document.getElementById("status-banner");
     const frame = document.getElementById("dashboard-frame");
     const meta = document.getElementById("dashboard-meta");
+    const progressPanel = document.getElementById("progress-panel");
     const isHubServer = location.hostname === "127.0.0.1" || location.hostname === "localhost";
 
     function renderCards() {
@@ -76,7 +104,7 @@
       if (!isHubServer) {
         if (id === "5" || id === "6") {
           window.open("https://github.com/jhnnnp/K-SecOps/actions/workflows/demo-scenario.yml", "_blank");
-          showBanner("GitHub Actions에서 Demo Scenario workflow를 실행하세요 (scenario=" + id + "). 완료 후 이 페이지를 새로고침하면 대시보드가 갱신됩니다.", "info");
+          showBanner("GitHub Actions에서 Demo Scenario workflow를 실행하세요 (scenario=" + id + ").", "info");
         } else {
           showBanner("로컬 시나리오 " + id + " 는 `python3 scripts/demo_hub.py` 로 실행하세요.", "warn");
         }
@@ -85,15 +113,15 @@
 
       btn.disabled = true;
       btn.textContent = "Running…";
-      showBanner("Scenario " + id + " 실행 중 — 코드 변경 · push · PR · CI 대기…", "info");
+      progressPanel.classList.remove("hidden");
+      document.getElementById("progress-title").textContent = "Scenario " + id + " 실행 중";
+      resetProgress();
 
       try {
         const res = await fetch("/api/scenarios/" + id + "/run", { method: "POST" });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || data.error || "run failed");
-
-        const jobId = data.job_id;
-        await pollJob(jobId, id);
+        await pollJob(data.job_id, id);
       } catch (err) {
         showBanner("Error: " + err.message, "error");
       } finally {
@@ -103,12 +131,13 @@
     }
 
     async function pollJob(jobId, scenarioId) {
-      for (let i = 0; i < 120; i++) {
+      for (let i = 0; i < 360; i++) {
         const res = await fetch("/api/jobs/" + jobId);
         const job = await res.json();
+        renderProgress(job, scenarioId);
+
         if (job.status === "running") {
-          showBanner(job.message || "Running…", "info");
-          await sleep(5000);
+          await sleep(1000);
           continue;
         }
         if (job.status === "failed") {
@@ -116,30 +145,85 @@
           return;
         }
         showBanner("Scenario " + scenarioId + " complete — " + (job.conclusion || "done"), "success");
-        if (job.dashboard_url) {
-          frame.src = job.dashboard_url + "?t=" + Date.now();
-        }
-        if (job.pr_url) {
-          meta.innerHTML = `<a class="text-sky-400 hover:underline" href="${job.pr_url}" target="_blank">PR</a>` +
-            (job.run_url ? ` · <a class="text-sky-400 hover:underline" href="${job.run_url}" target="_blank">Actions run</a>` : "");
-        }
+        if (job.dashboard_url) frame.src = job.dashboard_url + "?t=" + Date.now();
+        renderLinks(job);
         await refreshStatus();
         return;
       }
       showBanner("Timed out waiting for job", "error");
     }
 
+    function renderProgress(job, scenarioId) {
+      const pct = job.progress_pct || 0;
+      document.getElementById("progress-pct").textContent = pct + "%";
+      document.getElementById("progress-bar").style.width = pct + "%";
+      document.getElementById("progress-message").textContent = job.message || "Running…";
+      document.getElementById("progress-title").textContent =
+        "Scenario " + scenarioId + (job.status === "done" ? " 완료" : job.status === "failed" ? " 실패" : " 실행 중");
+
+      const stepList = document.getElementById("step-list");
+      stepList.innerHTML = (job.steps || []).map(step => {
+        const styles = {
+          pending: "border-slate-700 text-slate-500",
+          running: "border-sky-500 text-sky-200 bg-sky-950/40",
+          done: "border-emerald-700 text-emerald-200 bg-emerald-950/30",
+          failed: "border-rose-700 text-rose-200 bg-rose-950/30",
+        };
+        const icons = { pending: "○", running: "◉", done: "✓", failed: "✗" };
+        return `<li class="rounded-lg border px-3 py-2 text-xs ${styles[step.status] || styles.pending}">
+          <span class="mr-1">${icons[step.status] || "○"}</span>
+          <span class="font-medium">${step.label}</span>
+          ${step.message ? `<p class="mt-1 opacity-80 truncate">${step.message}</p>` : ""}
+        </li>`;
+      }).join("");
+
+      const details = job.details || {};
+      const rows = [];
+      if (details.changed_files) rows.push(["변경 파일", details.changed_files.join(", ")]);
+      if (details.branch) rows.push(["브랜치", details.branch]);
+      if (details.head_sha) rows.push(["Commit", details.head_sha]);
+      if (details.commit) rows.push(["메시지", details.commit]);
+      if (details.pr_url) rows.push(["PR", `<a class="text-sky-400 hover:underline" href="${details.pr_url}" target="_blank">${details.pr_url}</a>`]);
+      if (details.run_url) rows.push(["CI Run", `<a class="text-sky-400 hover:underline" href="${details.run_url}" target="_blank">Actions</a>`]);
+      if (details.conclusion) rows.push(["Gate", details.conclusion.toUpperCase()]);
+      if (details.gate) {
+        const g = details.gate;
+        rows.push(["Risk", `${g.risk_score ?? "—"}/100 · blockers ${g.risk_blockers ?? 0}`]);
+        if (g.reasons && g.reasons.length) rows.push(["차단 사유", g.reasons.join("; ")]);
+      }
+      document.getElementById("detail-list").innerHTML = rows.map(([k,v]) =>
+        `<div class="flex gap-2"><dt class="text-slate-500 shrink-0 w-20">${k}</dt><dd class="break-all">${v}</dd></div>`
+      ).join("") || '<p class="text-slate-500">단계 진행 중…</p>';
+
+      document.getElementById("log-view").textContent = (job.logs || []).join("\n") || "(로그 대기 중)";
+    }
+
+    function resetProgress() {
+      document.getElementById("progress-pct").textContent = "0%";
+      document.getElementById("progress-bar").style.width = "0%";
+      document.getElementById("step-list").innerHTML = "";
+      document.getElementById("detail-list").innerHTML = "";
+      document.getElementById("log-view").textContent = "";
+    }
+
+    function renderLinks(job) {
+      const links = [];
+      if (job.pr_url) links.push(`<a class="text-sky-400 hover:underline" href="${job.pr_url}" target="_blank">PR</a>`);
+      if (job.run_url) links.push(`<a class="text-sky-400 hover:underline" href="${job.run_url}" target="_blank">Actions run</a>`);
+      if (job.details && job.details.head_sha) links.push(`<span class="font-mono">${job.details.head_sha}</span>`);
+      if (links.length) meta.innerHTML = links.join(" · ");
+    }
+
     async function refreshStatus() {
       try {
-        const res = await fetch("status.json?t=" + Date.now());
+        const res = await fetch("/api/active?t=" + Date.now());
         if (!res.ok) return;
-        const status = await res.json();
-        const active = status.active_scenario;
-        if (!active || !status.scenarios[active]) return;
-        const entry = status.scenarios[active];
-        if (entry.dashboard_path && !frame.src.includes(entry.dashboard_path)) {
-          frame.src = entry.dashboard_path + "?t=" + Date.now();
-        }
+        const data = await res.json();
+        const hub = data.hub || {};
+        const active = hub.active_scenario;
+        if (!active || !hub.scenarios || !hub.scenarios[active]) return;
+        const entry = hub.scenarios[active];
+        if (entry.dashboard_path) frame.src = entry.dashboard_path + "?t=" + Date.now();
         const links = [];
         if (entry.pr_url) links.push(`<a class="text-sky-400 hover:underline" href="${entry.pr_url}" target="_blank">PR</a>`);
         if (entry.run_url) links.push(`<a class="text-sky-400 hover:underline" href="${entry.run_url}" target="_blank">CI run</a>`);
@@ -150,10 +234,10 @@
 
     function showBanner(text, kind) {
       const colors = {
-        info: "border-sky-800 text-sky-100",
-        success: "border-emerald-800 text-emerald-100",
-        warn: "border-amber-800 text-amber-100",
-        error: "border-rose-800 text-rose-100",
+        info: "border-sky-800 text-sky-100 bg-sky-950/30",
+        success: "border-emerald-800 text-emerald-100 bg-emerald-950/30",
+        warn: "border-amber-800 text-amber-100 bg-amber-950/30",
+        error: "border-rose-800 text-rose-100 bg-rose-950/30",
       };
       banner.className = "rounded-xl border px-5 py-4 text-sm " + (colors[kind] || colors.info);
       banner.textContent = text;

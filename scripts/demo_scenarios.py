@@ -13,7 +13,10 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from demo_progress import PipelineProgress
 
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON = sys.executable
@@ -114,13 +117,22 @@ def restore_application_code() -> None:
         main_py.write_text(content.replace(_DEMO_FAIL_LINE, "", 1), encoding="utf-8")
 
 
-def orchestrate_pr(number: str, *, repository: str = "") -> dict[str, Any]:
+def orchestrate_pr(
+    number: str,
+    *,
+    repository: str = "",
+    progress: PipelineProgress | None = None,
+) -> dict[str, Any]:
     """Apply patch, commit, push branch, open/update PR."""
     scenario = get_scenario(number)
     if scenario.kind != "pr" or not scenario.branch:
         raise ValueError(f"Scenario {number} is not a PR scenario")
 
+    if progress:
+        progress.start("precheck", "커밋되지 않은 변경 확인")
     _require_git_clean()
+    if progress:
+        progress.done("precheck", "작업 트리 clean")
 
     if os.getenv("GITHUB_ACTIONS") == "true":
         _run_git("config", "user.name", "github-actions[bot]")
@@ -130,30 +142,66 @@ def orchestrate_pr(number: str, *, repository: str = "") -> dict[str, Any]:
     _run_git_optional("pull", "--ff-only", "origin", "main")
     _run_git("checkout", "-B", scenario.branch)
 
+    if progress:
+        progress.start("patch", f"브랜치 {scenario.branch} 에 시나리오 {number} 패치")
     changed = apply_scenario(number)
+    if progress:
+        progress.done("patch", f"변경 파일: {', '.join(changed)}", changed_files=changed, branch=scenario.branch)
+        progress.set_detail("branch", scenario.branch)
+        progress.set_detail("changed_files", changed)
+
     for path in changed:
         _run_git("add", path)
 
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     message = f"demo: scenario {number} ({stamp})"
+    if progress:
+        progress.start("commit", message)
     _run_git("commit", "-m", message)
-    _run_git("push", "--force-with-lease", "-u", "origin", scenario.branch)
+    head = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    if progress:
+        progress.done("commit", f"commit {head}", commit=message, head_sha=head)
+        progress.set_detail("head_sha", head)
 
+    if progress:
+        progress.start("push", f"origin/{scenario.branch}")
+    _run_git("push", "--force-with-lease", "-u", "origin", scenario.branch)
+    if progress:
+        progress.done("push", "push 완료 — GitHub에서 SecOps Gate 트리거됨")
+
+    if progress:
+        progress.start("pr", scenario.pr_title)
     pr_url = _gh_pr_upsert(
         branch=scenario.branch,
         title=scenario.pr_title,
         body=scenario.pr_body,
     )
+    if progress:
+        progress.done("pr", pr_url, pr_url=pr_url)
+        progress.set_detail("pr_url", pr_url)
+
     return {
         "scenario": number,
         "branch": scenario.branch,
         "pr_url": pr_url,
         "repository": repository or os.getenv("GITHUB_REPOSITORY", ""),
         "started_at": stamp,
+        "head_sha": head,
     }
 
 
-def wait_for_gate(number: str, *, timeout_sec: int = 900) -> dict[str, Any]:
+def wait_for_gate(
+    number: str,
+    *,
+    timeout_sec: int = 900,
+    progress: PipelineProgress | None = None,
+) -> dict[str, Any]:
     """Wait until SecOps Gate completes on the scenario PR branch."""
     scenario = get_scenario(number)
     if not scenario.branch:
@@ -164,8 +212,14 @@ def wait_for_gate(number: str, *, timeout_sec: int = 900) -> dict[str, Any]:
     conclusion = ""
     run_id = ""
     run_url = ""
+    head_sha = ""
 
+    if progress:
+        progress.start("ci", f"PR Checks · {scenario.branch}")
+
+    poll = 0
     while time.time() < deadline:
+        poll += 1
         checks = subprocess.run(
             [
                 "gh",
@@ -184,14 +238,20 @@ def wait_for_gate(number: str, *, timeout_sec: int = 900) -> dict[str, Any]:
             rows = json.loads(checks.stdout)
             gate = next((r for r in rows if "devsecops" in r.get("name", "").lower()), None)
             if gate:
-                state = gate.get("state", "")
+                state = gate.get("state", "PENDING")
+                if progress:
+                    progress.start("ci", f"devsecops-gate: {state} (poll #{poll})")
                 if state in {"SUCCESS", "FAILURE", "CANCELLED", "SKIPPED"}:
                     conclusion = state.lower()
                     run_url = gate.get("link", "")
                     break
+        elif progress:
+            progress.start("ci", f"Checks 대기 중… (poll #{poll})")
         time.sleep(15)
 
     if not conclusion:
+        if progress:
+            progress.fail("ci", f"SecOps Gate timeout ({timeout_sec}s)")
         raise TimeoutError(f"SecOps Gate did not finish within {timeout_sec}s for {scenario.branch}")
 
     runs = subprocess.run(
@@ -218,8 +278,11 @@ def wait_for_gate(number: str, *, timeout_sec: int = 900) -> dict[str, Any]:
         run_id = str(run_rows[0].get("databaseId", ""))
         run_url = run_rows[0].get("url", run_url)
         head_sha = run_rows[0].get("headSha", "")
-    else:
-        head_sha = ""
+
+    if progress:
+        progress.done("ci", conclusion.upper(), run_url=run_url, run_id=run_id)
+        progress.set_detail("run_url", run_url)
+        progress.set_detail("conclusion", conclusion)
 
     return {
         "scenario": number,
@@ -301,32 +364,85 @@ def publish_live(
     return target
 
 
-def run_local_gate(*, inject_fail: bool = False) -> tuple[int, Path]:
+def run_local_gate(
+    *,
+    inject_fail: bool = False,
+    progress: PipelineProgress | None = None,
+) -> tuple[int, Path]:
     """Run ci_gate locally; optionally inject fail key first."""
     if inject_fail:
-        _apply_pr_fail()
+        if progress:
+            progress.start("patch", "src/main.py에 AWS docs 예시 키 1줄 주입")
+        changed = _apply_pr_fail()
+        if progress:
+            progress.done("patch", f"변경: {', '.join(changed)}", changed_files=changed)
+            progress.set_detail("changed_files", changed)
+    elif progress:
+        progress.start("patch", "main 기준 — 앱 코드 변경 없음")
+        progress.done("patch", "PASS 경로 (패치 없음)")
+
+    if progress:
+        progress.start("scan", "Trivy · Semgrep · Secrets · SCA · Checkov 실행 중…")
+    result = subprocess.run(
+        [PYTHON, str(ROOT / "scripts" / "ci_gate.py")],
+        cwd=ROOT,
+        env=ENV,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    code = result.returncode
+    if progress:
+        for line in (result.stdout or "").strip().splitlines()[-4:]:
+            progress.log(line)
+        progress.done("scan", f"exit code {code}")
+
+    gate_info: dict[str, Any] = {}
+    gate_path = ROOT / "reports" / "GATE_RESULT.json"
+    if gate_path.is_file():
+        gate_info = json.loads(gate_path.read_text(encoding="utf-8"))
+
+    if progress:
+        verdict = "PASSED" if code == 0 else "FAILED"
+        progress.start("gate", "GATE_RESULT.json 읽는 중")
+        progress.done(
+            "gate",
+            verdict,
+            passed=gate_info.get("passed"),
+            blockers=gate_info.get("risk_blockers", 0),
+            reasons=(gate_info.get("reasons") or [])[:3],
+            risk_score=gate_info.get("risk_score"),
+        )
+        progress.set_detail("conclusion", "success" if code == 0 else "failure")
+        progress.set_detail("gate", gate_info)
+
+    dashboard = ROOT / "reports" / "SECOPS_DASHBOARD.html"
     try:
-        code = subprocess.run(
-            [PYTHON, str(ROOT / "scripts" / "ci_gate.py")],
-            cwd=ROOT,
-            env=ENV,
-            check=False,
-        ).returncode
-        dashboard = ROOT / "reports" / "SECOPS_DASHBOARD.html"
         return code, dashboard
     finally:
         if inject_fail:
             restore_application_code()
+            if progress:
+                progress.log("src/main.py 데모 키 제거 (로컬 복원)")
 
 
-def run_full_pr_pipeline(number: str) -> dict[str, Any]:
+def run_full_pr_pipeline(
+    number: str,
+    progress: PipelineProgress | None = None,
+) -> dict[str, Any]:
     """Local/GitHub CLI: apply → push PR → wait gate → download → publish."""
-    meta = orchestrate_pr(number)
-    gate = wait_for_gate(number)
+    meta = orchestrate_pr(number, progress=progress)
+    gate = wait_for_gate(number, progress=progress)
     if not gate.get("run_id"):
         raise RuntimeError("Could not resolve SecOps Gate run id")
     tmp = ROOT / "reports" / "_demo_fetch"
+    if progress:
+        progress.start("artifact", f"run {gate['run_id']}")
     dashboard = fetch_dashboard(gate["run_id"], tmp)
+    if progress:
+        progress.done("artifact", str(dashboard.name))
+    if progress:
+        progress.start("publish", "docs/demo/live/ 에 게시")
     publish_live(
         number,
         dashboard,
@@ -335,6 +451,8 @@ def run_full_pr_pipeline(number: str) -> dict[str, Any]:
         conclusion=gate.get("conclusion", ""),
         head_sha=gate.get("head_sha", ""),
     )
+    if progress:
+        progress.done("publish", f"scenario-{number}.html")
     return {**meta, **gate, "dashboard": str(DEMO_LIVE_DIR / f"scenario-{number}.html")}
 
 
