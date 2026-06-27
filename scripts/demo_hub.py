@@ -21,7 +21,15 @@ from demo_scenarios import (  # noqa: E402
     run_full_pr_pipeline,
     run_local_gate,
 )
-from gh_auth import check_gh_auth, login_status, login_with_token, start_web_login  # noqa: E402
+from gh_auth import (  # noqa: E402
+    check_gh_auth,
+    check_git_status,
+    login_status,
+    login_with_token,
+    logout_gh,
+    refresh_scopes,
+    start_web_login,
+)
 
 try:
     from fastapi import FastAPI, HTTPException
@@ -77,9 +85,24 @@ def gh_status() -> dict[str, Any]:
     return login_status()
 
 
+@app.get("/api/git/status")
+def git_status() -> dict[str, Any]:
+    return check_git_status()
+
+
 @app.post("/api/gh/login/web")
 def gh_login_web() -> dict[str, Any]:
     return start_web_login()
+
+
+@app.post("/api/gh/login/refresh")
+def gh_login_refresh() -> dict[str, Any]:
+    return refresh_scopes()
+
+
+@app.post("/api/gh/logout")
+def gh_logout() -> dict[str, Any]:
+    return logout_gh()
 
 
 @app.post("/api/gh/login/token")
@@ -105,6 +128,16 @@ def run_scenario(scenario_id: str) -> dict[str, str]:
                     "reason": auth.get("reason"),
                     "login_command": auth.get("login_command"),
                     "install_hint": auth.get("install_hint"),
+                    "note": auth.get("note"),
+                },
+            )
+        git = check_git_status()
+        if not git.get("ok"):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": git.get("message"),
+                    "dirty_files": git.get("dirty_files", []),
                 },
             )
 
@@ -267,7 +300,10 @@ def main() -> None:
         print(f"GitHub: {auth.get('message')}")
     else:
         print(f"GitHub: NOT READY — {auth.get('message')}")
-        print(f"  Fix: {auth.get('login_command') or 'Use Demo Hub 「GitHub 로그인」 button'}")
+        print(f"  ({auth.get('note', '')[:80]}…)")
+        print(f"  Fix: {auth.get('login_command') or 'Demo Hub gh 로그인 버튼'}")
+    git = check_git_status()
+    print(f"Git: {git.get('message')} (branch: {git.get('branch')})")
     uvicorn.run(app, host=args.host, port=port, log_level="info")
 
 

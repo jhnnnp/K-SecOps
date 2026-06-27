@@ -27,28 +27,51 @@
     </section>
     </header>
 
-    <section id="gh-auth-panel" class="hidden rounded-xl border border-slate-700 bg-slate-900/80 p-5 space-y-3">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p class="text-xs uppercase tracking-wider text-slate-500">GitHub 연동 (PR 시나리오 5·6)</p>
-          <p id="gh-auth-message" class="mt-1 text-sm text-slate-300">확인 중…</p>
-          <p id="gh-auth-detail" class="mt-1 text-xs text-slate-500 font-mono"></p>
+    <section id="gh-auth-panel" class="hidden rounded-xl border border-slate-700 bg-slate-900/80 p-5 space-y-4">
+      <div class="rounded-lg border border-amber-900/50 bg-amber-950/30 px-4 py-3 text-xs text-amber-100/90 leading-relaxed">
+        <strong class="text-amber-200">중요:</strong> github.com 웹 로그인 ≠ gh CLI.
+        PR push/생성에는 아래 <strong class="text-amber-200">gh CLI 연결( repo scope )</strong>이 필요합니다.
+      </div>
+
+      <div class="grid gap-4 md:grid-cols-2">
+        <div class="space-y-3">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p class="text-xs uppercase tracking-wider text-slate-500">GitHub CLI (gh)</p>
+              <p id="gh-auth-message" class="mt-1 text-sm text-slate-300">확인 중…</p>
+              <p id="gh-auth-detail" class="mt-1 text-xs text-slate-500 font-mono break-all"></p>
+            </div>
+            <span id="gh-auth-badge" class="rounded-full px-3 py-1 text-xs font-medium shrink-0">—</span>
+          </div>
+          <div id="gh-auth-actions" class="flex flex-wrap gap-2">
+            <button id="gh-login-web" type="button" class="rounded-lg bg-sky-600 px-3 py-2 text-xs font-medium hover:bg-sky-500">gh 로그인 (repo scope)</button>
+            <button id="gh-login-refresh" type="button" class="hidden rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium hover:bg-indigo-500">scope 갱신</button>
+            <button id="gh-auth-refresh" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-xs hover:bg-slate-800">상태 확인</button>
+            <button id="gh-logout" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-xs hover:bg-slate-800">gh 로그아웃</button>
+            <button id="gh-token-toggle" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-xs hover:bg-slate-800">토큰 입력</button>
+          </div>
         </div>
-        <span id="gh-auth-badge" class="rounded-full px-3 py-1 text-xs font-medium">—</span>
+
+        <div class="rounded-lg border border-slate-800 bg-slate-950/50 p-4 space-y-2">
+          <div class="flex items-center justify-between">
+            <p class="text-xs uppercase tracking-wider text-slate-500">Git 작업 트리</p>
+            <span id="git-status-badge" class="rounded-full px-2 py-0.5 text-xs font-medium">—</span>
+          </div>
+          <p id="git-branch" class="text-sm font-mono text-slate-300">branch: —</p>
+          <p id="git-status-message" class="text-xs text-slate-400">—</p>
+          <ul id="git-dirty-list" class="text-xs text-amber-300/90 font-mono space-y-0.5 max-h-24 overflow-y-auto"></ul>
+        </div>
       </div>
-      <div id="gh-auth-actions" class="flex flex-wrap gap-2">
-        <button id="gh-login-web" type="button" class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium hover:bg-sky-500">브라우저로 GitHub 로그인</button>
-        <button id="gh-auth-refresh" type="button" class="rounded-lg border border-slate-600 px-4 py-2 text-sm hover:bg-slate-800">상태 확인</button>
-        <button id="gh-token-toggle" type="button" class="rounded-lg border border-slate-600 px-4 py-2 text-sm hover:bg-slate-800">토큰으로 로그인</button>
-      </div>
+
       <div id="gh-token-panel" class="hidden space-y-2">
-        <p class="text-xs text-slate-500">Personal Access Token (scope: repo) — 로컬에서만 사용</p>
+        <p class="text-xs text-slate-500">Personal Access Token (scope: <strong>repo</strong> 필수)</p>
         <div class="flex gap-2">
           <input id="gh-token-input" type="password" placeholder="ghp_…" class="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-mono" />
           <button id="gh-token-submit" type="button" class="rounded-lg bg-slate-700 px-4 py-2 text-sm hover:bg-slate-600">적용</button>
         </div>
       </div>
       <p id="gh-install-hint" class="hidden text-xs text-amber-400/90"></p>
+      <pre id="gh-auth-raw" class="hidden max-h-20 overflow-y-auto text-xs text-slate-600 font-mono"></pre>
     </section>
 
     <section id="progress-panel" class="hidden rounded-2xl border border-slate-700 bg-slate-900/80 p-5 space-y-4">
@@ -122,11 +145,13 @@
     const ghAuthPanel = document.getElementById("gh-auth-panel");
     const isHubServer = location.hostname === "127.0.0.1" || location.hostname === "localhost";
     let ghAuthed = false;
+    let gitClean = true;
     let ghPollTimer = null;
 
     function renderCards() {
       grid.innerHTML = SCENARIOS.map(s => {
-        const prBlocked = s.kind === "pr" && isHubServer && !ghAuthed;
+        const prBlocked = s.kind === "pr" && isHubServer && (!ghAuthed || !gitClean);
+        const blockReason = !ghAuthed ? "gh CLI 로그인 필요 ↑" : (!gitClean ? "Git 변경사항 정리 필요 ↑" : "");
         return `
         <article class="rounded-xl border ${s.kind === "pr" ? "border-sky-900/60" : "border-slate-800"} bg-slate-900/60 p-5 flex flex-col gap-3 ${prBlocked ? "opacity-70" : ""}">
           <div>
@@ -136,7 +161,7 @@
             <h3 class="mt-1 text-lg font-medium text-white">${s.title}</h3>
             <p class="mt-2 text-sm text-slate-400">${s.desc}</p>
             <p class="mt-2 rounded-md bg-slate-950/60 px-2 py-1 text-xs font-mono ${s.kind === "pr" ? "text-sky-300" : "text-emerald-400"}">${s.flow}</p>
-            ${prBlocked ? '<p class="mt-2 text-xs text-amber-400">GitHub 로그인 필요 ↑</p>' : ""}
+            ${prBlocked ? `<p class="mt-2 text-xs text-amber-400">${blockReason}</p>` : ""}
           </div>
           <button data-id="${s.id}" data-kind="${s.kind}" class="scenario-run mt-auto rounded-lg px-4 py-2 text-sm font-medium transition disabled:opacity-40 disabled:cursor-not-allowed
             ${s.kind === "pr" ? "bg-sky-600 hover:bg-sky-500 text-white" : "bg-emerald-700 hover:bg-emerald-600 text-white"}"
@@ -175,9 +200,15 @@
           if (res.status === 401) {
             const detail = data.detail || {};
             const msg = typeof detail === "object" ? detail.message : detail;
-            showBanner(msg || "GitHub 로그인 필요", "warn");
+            showBanner((msg || "gh CLI 로그인 필요") + " (웹 로그인과 별개)", "warn");
             await refreshGhAuth();
             ghAuthPanel.scrollIntoView({ behavior: "smooth" });
+            return;
+          }
+          if (res.status === 409) {
+            const detail = data.detail || {};
+            showBanner(detail.message || "Git 작업 트리 정리 필요", "warn");
+            await refreshGhAuth();
             return;
           }
           throw new Error(data.detail || data.error || "run failed");
@@ -314,49 +345,120 @@
         const res = await fetch("/api/gh/status");
         const auth = await res.json();
         ghAuthed = !!auth.ok;
+        const git = auth.git || {};
+        gitClean = git.ok !== false;
+
         const badge = document.getElementById("gh-auth-badge");
         const msg = document.getElementById("gh-auth-message");
         const detail = document.getElementById("gh-auth-detail");
         const hint = document.getElementById("gh-install-hint");
+        const raw = document.getElementById("gh-auth-raw");
+        const refreshBtn = document.getElementById("gh-login-refresh");
 
         if (auth.ok) {
           badge.className = "rounded-full px-3 py-1 text-xs font-medium bg-emerald-900/60 text-emerald-300 border border-emerald-800";
-          badge.textContent = "Connected";
+          badge.textContent = "gh Connected";
           msg.textContent = auth.message;
-          detail.textContent = auth.scopes && auth.scopes.length ? "scopes: " + auth.scopes.join(", ") : "";
-          hint.classList.add("hidden");
+          detail.textContent = auth.scopes?.length ? "scopes: " + auth.scopes.join(", ") : "";
+          refreshBtn.classList.add("hidden");
+          if (ghPollTimer) { clearInterval(ghPollTimer); ghPollTimer = null; }
+        } else if (auth.login_in_progress) {
+          badge.className = "rounded-full px-3 py-1 text-xs font-medium bg-sky-900/60 text-sky-300 border border-sky-800";
+          badge.textContent = "Authenticating…";
+          msg.textContent = "브라우저에서 gh 인증을 완료하세요…";
+          detail.textContent = auth.login_command || "";
+        } else if (auth.reason === "insufficient_scopes") {
+          badge.className = "rounded-full px-3 py-1 text-xs font-medium bg-amber-900/60 text-amber-300 border border-amber-800";
+          badge.textContent = "Scope 부족";
+          msg.textContent = auth.message;
+          detail.textContent = "「scope 갱신」 또는 재로그인 필요";
+          refreshBtn.classList.remove("hidden");
+          if (ghPollTimer) { clearInterval(ghPollTimer); ghPollTimer = null; }
+        } else if (auth.reason === "invalid_token") {
+          badge.className = "rounded-full px-3 py-1 text-xs font-medium bg-rose-900/60 text-rose-300 border border-rose-800";
+          badge.textContent = "토큰 무효";
+          msg.textContent = auth.message;
+          detail.textContent = "「gh 로그인」으로 재인증하세요";
+          refreshBtn.classList.add("hidden");
           if (ghPollTimer) { clearInterval(ghPollTimer); ghPollTimer = null; }
         } else {
           badge.className = "rounded-full px-3 py-1 text-xs font-medium bg-amber-900/40 text-amber-300 border border-amber-800";
-          badge.textContent = auth.login_in_progress ? "Logging in…" : "Not connected";
-          msg.textContent = auth.login_in_progress
-            ? (auth.message || "브라우저에서 GitHub 로그인을 완료하세요…")
-            : auth.message;
+          badge.textContent = "gh Not connected";
+          msg.textContent = auth.message;
           detail.textContent = auth.login_command ? "터미널: " + auth.login_command : "";
-          if (auth.install_hint) {
-            hint.textContent = auth.install_hint;
-            hint.classList.remove("hidden");
-          } else {
-            hint.classList.add("hidden");
-          }
+          refreshBtn.classList.add("hidden");
         }
+
+        if (auth.install_hint) {
+          hint.textContent = auth.install_hint;
+          hint.classList.remove("hidden");
+        } else {
+          hint.classList.add("hidden");
+        }
+
+        if (auth.raw_tail || auth.login_output_tail) {
+          raw.textContent = (auth.login_output_tail || auth.raw_tail || "").trim();
+          raw.classList.toggle("hidden", !raw.textContent);
+        } else {
+          raw.classList.add("hidden");
+        }
+
+        const gitBadge = document.getElementById("git-status-badge");
+        document.getElementById("git-branch").textContent = "branch: " + (git.branch || "—");
+        document.getElementById("git-status-message").textContent = git.message || "—";
+        const dirtyList = document.getElementById("git-dirty-list");
+        dirtyList.innerHTML = (git.dirty_files || []).map(f => `<li>${f}</li>`).join("");
+        if (git.ok) {
+          gitBadge.className = "rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-900/60 text-emerald-300";
+          gitBadge.textContent = "clean";
+        } else {
+          gitBadge.className = "rounded-full px-2 py-0.5 text-xs font-medium bg-amber-900/60 text-amber-300";
+          gitBadge.textContent = git.dirty_count + " changed";
+        }
+
         renderCards();
       } catch (e) {
-        document.getElementById("gh-auth-message").textContent = "GitHub 상태 확인 실패";
+        document.getElementById("gh-auth-message").textContent = "상태 확인 실패: " + e.message;
       }
+    }
+
+    function startGhPoll() {
+      if (ghPollTimer) clearInterval(ghPollTimer);
+      ghPollTimer = setInterval(async () => {
+        await refreshGhAuth();
+        const badge = document.getElementById("gh-auth-badge").textContent;
+        if (badge === "gh Connected" || badge === "Scope 부족" || badge === "토큰 무효" || badge === "gh Not connected") {
+          if (!document.getElementById("gh-auth-badge").textContent.includes("Authenticating")) {
+            clearInterval(ghPollTimer);
+            ghPollTimer = null;
+          }
+        }
+      }, 2000);
     }
 
     async function startGhWebLogin() {
       const res = await fetch("/api/gh/login/web", { method: "POST" });
       const data = await res.json();
-      if (data.error) {
-        showBanner(data.error, "error");
-        return;
-      }
-      showBanner(data.message || "브라우저에서 GitHub 로그인을 완료하세요", "info");
+      if (data.error) { showBanner(data.error, "error"); return; }
+      if (data.already_authenticated) { showBanner("이미 gh CLI 연결됨", "success"); await refreshGhAuth(); return; }
+      showBanner(data.message || "브라우저에서 gh 로그인 완료", "info");
       await refreshGhAuth();
-      if (ghPollTimer) clearInterval(ghPollTimer);
-      ghPollTimer = setInterval(refreshGhAuth, 2000);
+      startGhPoll();
+    }
+
+    async function startGhScopeRefresh() {
+      const res = await fetch("/api/gh/login/refresh", { method: "POST" });
+      const data = await res.json();
+      if (data.error) { showBanner(data.error, "error"); return; }
+      showBanner(data.message || "scope 갱신 중…", "info");
+      await refreshGhAuth();
+      startGhPoll();
+    }
+
+    async function ghLogout() {
+      await fetch("/api/gh/logout", { method: "POST" });
+      showBanner("gh 로그아웃 — 재로그인하세요", "warn");
+      await refreshGhAuth();
     }
 
     async function submitGhToken() {
@@ -380,7 +482,9 @@
 
     if (isHubServer) {
       document.getElementById("gh-login-web").addEventListener("click", startGhWebLogin);
+      document.getElementById("gh-login-refresh").addEventListener("click", startGhScopeRefresh);
       document.getElementById("gh-auth-refresh").addEventListener("click", refreshGhAuth);
+      document.getElementById("gh-logout").addEventListener("click", ghLogout);
       document.getElementById("gh-token-toggle").addEventListener("click", () => {
         document.getElementById("gh-token-panel").classList.toggle("hidden");
       });
