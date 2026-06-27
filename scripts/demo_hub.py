@@ -22,6 +22,7 @@ from demo_scenarios import (  # noqa: E402
     run_local_gate,
 )
 from gh_auth import (  # noqa: E402
+    cancel_auth_flow,
     check_gh_auth,
     check_git_status,
     login_status,
@@ -68,7 +69,9 @@ class JobRecord:
 
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse(DEMO_DIR / "index.html")
+    response = FileResponse(DEMO_DIR / "index.html")
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.get("/api/scenarios")
@@ -82,6 +85,13 @@ def list_scenarios() -> list[dict[str, Any]]:
 
 @app.get("/api/gh/status")
 def gh_status() -> dict[str, Any]:
+    return login_status()
+
+
+@app.post("/api/gh/sync")
+def gh_sync() -> dict[str, Any]:
+    """Force refresh; clears stuck Authenticating state."""
+    cancel_auth_flow()
     return login_status()
 
 
@@ -102,7 +112,13 @@ def gh_login_refresh() -> dict[str, Any]:
 
 @app.post("/api/gh/logout")
 def gh_logout() -> dict[str, Any]:
+    cancel_auth_flow()
     return logout_gh()
+
+
+@app.post("/api/gh/cancel")
+def gh_cancel() -> dict[str, Any]:
+    return cancel_auth_flow()
 
 
 @app.post("/api/gh/login/token")

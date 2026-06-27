@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 LOGIN_LOCK = threading.Lock()
 LOGIN_IN_PROGRESS = False
 LOGIN_LAST_OUTPUT = ""
+LOGIN_STARTED_AT = 0.0
+LOGIN_TIMEOUT_SEC = 120
 REQUIRED_SCOPES = ("repo", "read:org", "gist")
 NOTE_BROWSER_VS_CLI = (
     "GitHub 웹사이트(github.com) 로그인과 gh CLI 인증은 별개입니다. "
@@ -213,32 +216,68 @@ def logout_gh() -> dict[str, Any]:
     return {"ok": True, "status": check_gh_auth()}
 
 
+def cancel_auth_flow() -> dict[str, Any]:
+    """Clear stuck in-progress flag (e.g. after terminal login or timed-out browser flow)."""
+    global LOGIN_IN_PROGRESS, LOGIN_LAST_OUTPUT, LOGIN_STARTED_AT
+    with LOGIN_LOCK:
+        LOGIN_IN_PROGRESS = False
+        LOGIN_STARTED_AT = 0.0
+    return {"ok": True, "status": login_status()}
+
+
 def login_status() -> dict[str, Any]:
+    global LOGIN_IN_PROGRESS, LOGIN_STARTED_AT
+    _maybe_clear_stale_login()
     gh = check_gh_auth()
     git = check_git_status()
     with LOGIN_LOCK:
         in_progress = LOGIN_IN_PROGRESS
         last_output = LOGIN_LAST_OUTPUT[-800:] if LOGIN_LAST_OUTPUT else ""
+        started_at = LOGIN_STARTED_AT
+
+    if gh.get("ok"):
+        with LOGIN_LOCK:
+            LOGIN_IN_PROGRESS = False
+            LOGIN_STARTED_AT = 0.0
+        in_progress = False
+
     return {
         **gh,
         "git": git,
         "login_in_progress": in_progress,
+        "login_started_at": started_at,
         "login_output_tail": last_output,
         "note": gh.get("note") or NOTE_BROWSER_VS_CLI,
     }
 
 
+def _maybe_clear_stale_login() -> None:
+    global LOGIN_IN_PROGRESS, LOGIN_STARTED_AT
+    with LOGIN_LOCK:
+        if not LOGIN_IN_PROGRESS:
+            return
+        if LOGIN_STARTED_AT and (time.time() - LOGIN_STARTED_AT) > LOGIN_TIMEOUT_SEC:
+            LOGIN_IN_PROGRESS = False
+            LOGIN_STARTED_AT = 0.0
+
+
 def _start_auth_command(cmd: list[str], *, message: str) -> dict[str, Any]:
-    global LOGIN_IN_PROGRESS, LOGIN_LAST_OUTPUT
+    global LOGIN_IN_PROGRESS, LOGIN_LAST_OUTPUT, LOGIN_STARTED_AT
 
     with LOGIN_LOCK:
         if LOGIN_IN_PROGRESS:
-            return {"started": True, "in_progress": True, "message": "인증 진행 중…"}
+            elapsed = int(time.time() - LOGIN_STARTED_AT) if LOGIN_STARTED_AT else 0
+            return {
+                "started": False,
+                "in_progress": True,
+                "message": f"인증 진행 중 ({elapsed}s)… 완료 후 「상태 확인」 또는 「인증 초기화」",
+            }
         LOGIN_IN_PROGRESS = True
         LOGIN_LAST_OUTPUT = ""
+        LOGIN_STARTED_AT = time.time()
 
     def _run() -> None:
-        global LOGIN_IN_PROGRESS, LOGIN_LAST_OUTPUT
+        global LOGIN_IN_PROGRESS, LOGIN_LAST_OUTPUT, LOGIN_STARTED_AT
         try:
             proc = subprocess.run(
                 cmd,
@@ -246,12 +285,16 @@ def _start_auth_command(cmd: list[str], *, message: str) -> dict[str, Any]:
                 text=True,
                 check=False,
                 cwd=ROOT,
+                timeout=LOGIN_TIMEOUT_SEC,
                 env={**os.environ, "GH_PROMPT_DISABLED": "1"},
             )
             LOGIN_LAST_OUTPUT = (proc.stdout or "") + (proc.stderr or "")
+        except subprocess.TimeoutExpired:
+            LOGIN_LAST_OUTPUT = f"Timeout ({LOGIN_TIMEOUT_SEC}s). 터미널에서 직접 실행하세요: {' '.join(cmd)}"
         finally:
             with LOGIN_LOCK:
                 LOGIN_IN_PROGRESS = False
+                LOGIN_STARTED_AT = 0.0
 
     threading.Thread(target=_run, daemon=True).start()
     return {"started": True, "in_progress": True, "message": message}

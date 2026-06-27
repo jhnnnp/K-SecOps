@@ -47,6 +47,7 @@
             <button id="gh-login-web" type="button" class="rounded-lg bg-sky-600 px-3 py-2 text-xs font-medium hover:bg-sky-500">gh 로그인 (repo scope)</button>
             <button id="gh-login-refresh" type="button" class="hidden rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium hover:bg-indigo-500">scope 갱신</button>
             <button id="gh-auth-refresh" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-xs hover:bg-slate-800">상태 확인</button>
+            <button id="gh-auth-cancel" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-xs hover:bg-slate-800">인증 초기화</button>
             <button id="gh-logout" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-xs hover:bg-slate-800">gh 로그아웃</button>
             <button id="gh-token-toggle" type="button" class="rounded-lg border border-slate-600 px-3 py-2 text-xs hover:bg-slate-800">토큰 입력</button>
           </div>
@@ -341,8 +342,11 @@
     async function refreshGhAuth() {
       if (!isHubServer) return;
       ghAuthPanel.classList.remove("hidden");
+      const refreshBtnEl = document.getElementById("gh-auth-refresh");
+      if (refreshBtnEl) refreshBtnEl.disabled = true;
       try {
-        const res = await fetch("/api/gh/status");
+        const res = await fetch("/api/gh/sync", { method: "POST" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
         const auth = await res.json();
         ghAuthed = !!auth.ok;
         const git = auth.git || {};
@@ -353,40 +357,39 @@
         const detail = document.getElementById("gh-auth-detail");
         const hint = document.getElementById("gh-install-hint");
         const raw = document.getElementById("gh-auth-raw");
-        const refreshBtn = document.getElementById("gh-login-refresh");
+        const scopeBtn = document.getElementById("gh-login-refresh");
 
         if (auth.ok) {
           badge.className = "rounded-full px-3 py-1 text-xs font-medium bg-emerald-900/60 text-emerald-300 border border-emerald-800";
           badge.textContent = "gh Connected";
           msg.textContent = auth.message;
           detail.textContent = auth.scopes?.length ? "scopes: " + auth.scopes.join(", ") : "";
-          refreshBtn.classList.add("hidden");
+          if (scopeBtn) scopeBtn.classList.add("hidden");
           if (ghPollTimer) { clearInterval(ghPollTimer); ghPollTimer = null; }
-        } else if (auth.login_in_progress) {
-          badge.className = "rounded-full px-3 py-1 text-xs font-medium bg-sky-900/60 text-sky-300 border border-sky-800";
-          badge.textContent = "Authenticating…";
-          msg.textContent = "브라우저에서 gh 인증을 완료하세요…";
-          detail.textContent = auth.login_command || "";
         } else if (auth.reason === "insufficient_scopes") {
           badge.className = "rounded-full px-3 py-1 text-xs font-medium bg-amber-900/60 text-amber-300 border border-amber-800";
           badge.textContent = "Scope 부족";
           msg.textContent = auth.message;
-          detail.textContent = "「scope 갱신」 또는 재로그인 필요";
-          refreshBtn.classList.remove("hidden");
-          if (ghPollTimer) { clearInterval(ghPollTimer); ghPollTimer = null; }
+          detail.textContent = auth.login_in_progress
+            ? "scope 갱신 진행 중… 터미널: gh auth refresh -s repo,read:org,gist"
+            : "「scope 갱신」 또는 터미널 재로그인";
+          if (scopeBtn) scopeBtn.classList.remove("hidden");
         } else if (auth.reason === "invalid_token") {
           badge.className = "rounded-full px-3 py-1 text-xs font-medium bg-rose-900/60 text-rose-300 border border-rose-800";
           badge.textContent = "토큰 무효";
           msg.textContent = auth.message;
-          detail.textContent = "「gh 로그인」으로 재인증하세요";
-          refreshBtn.classList.add("hidden");
-          if (ghPollTimer) { clearInterval(ghPollTimer); ghPollTimer = null; }
+          detail.textContent = "터미널: gh auth login -s repo,read:org,gist";
+          if (scopeBtn) scopeBtn.classList.add("hidden");
         } else {
           badge.className = "rounded-full px-3 py-1 text-xs font-medium bg-amber-900/40 text-amber-300 border border-amber-800";
-          badge.textContent = "gh Not connected";
+          badge.textContent = auth.login_in_progress ? "Authenticating…" : "gh Not connected";
           msg.textContent = auth.message;
           detail.textContent = auth.login_command ? "터미널: " + auth.login_command : "";
-          refreshBtn.classList.add("hidden");
+          if (scopeBtn) scopeBtn.classList.add("hidden");
+        }
+
+        if (auth.login_in_progress && !auth.ok) {
+          showBanner("gh 인증 진행 중… 터미널에서 로그인했다면 「인증 초기화」→「상태 확인」", "info");
         }
 
         if (auth.install_hint) {
@@ -413,13 +416,23 @@
           gitBadge.textContent = "clean";
         } else {
           gitBadge.className = "rounded-full px-2 py-0.5 text-xs font-medium bg-amber-900/60 text-amber-300";
-          gitBadge.textContent = git.dirty_count + " changed";
+          gitBadge.textContent = (git.dirty_count || 0) + " changed";
         }
 
         renderCards();
       } catch (e) {
         document.getElementById("gh-auth-message").textContent = "상태 확인 실패: " + e.message;
+        showBanner("상태 확인 API 실패 — demo_hub 재시작 후 다시 시도", "error");
+      } finally {
+        if (refreshBtnEl) refreshBtnEl.disabled = false;
       }
+    }
+
+    async function cancelGhAuth() {
+      await fetch("/api/gh/cancel", { method: "POST" });
+      if (ghPollTimer) { clearInterval(ghPollTimer); ghPollTimer = null; }
+      showBanner("인증 진행 상태 초기화 — 「상태 확인」으로 gh CLI 재조회", "info");
+      await refreshGhAuth();
     }
 
     function startGhPoll() {
@@ -484,6 +497,7 @@
       document.getElementById("gh-login-web").addEventListener("click", startGhWebLogin);
       document.getElementById("gh-login-refresh").addEventListener("click", startGhScopeRefresh);
       document.getElementById("gh-auth-refresh").addEventListener("click", refreshGhAuth);
+      document.getElementById("gh-auth-cancel").addEventListener("click", cancelGhAuth);
       document.getElementById("gh-logout").addEventListener("click", ghLogout);
       document.getElementById("gh-token-toggle").addEventListener("click", () => {
         document.getElementById("gh-token-panel").classList.toggle("hidden");
