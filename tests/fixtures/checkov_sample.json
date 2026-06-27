@@ -1,0 +1,25 @@
+[
+  {
+    "check_type": "kubernetes",
+    "results": {
+      "failed_checks": [
+        {
+          "check_id": "CKV_K8S_23",
+          "check_name": "Minimize the admission of privileged containers",
+          "file_path": "dummy-infra/k8s/deployment-vulnerable.yaml",
+          "file_line_range": [18, 21],
+          "resource": "Deployment.default.payment-api",
+          "guideline": "Privileged containers share host kernel and must be avoided."
+        },
+        {
+          "check_id": "CKV_K8S_38",
+          "check_name": "Service should not use NodePort",
+          "file_path": "dummy-infra/k8s/service-nodeport.yaml",
+          "file_line_range": [6, 12],
+          "resource": "Service.default.payment-api-nodeport",
+          "guideline": "NodePort exposes services on host ports."
+        }
+      ]
+    }
+  }
+]

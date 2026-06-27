@@ -1,0 +1,34 @@
+{
+  "Results": [
+    {
+      "Target": "dummy-infra/docker/Dockerfile.insecure",
+      "Class": "config",
+      "Type": "dockerfile",
+      "Misconfigurations": [
+        {
+          "Type": "Dockerfile Security Check",
+          "ID": "DS002",
+          "Title": "Root user should not be used",
+          "Description": "Running as root is discouraged",
+          "Severity": "HIGH",
+          "CauseMetadata": {
+            "StartLine": 3
+          }
+        }
+      ]
+    },
+    {
+      "Target": "dummy-infra/docker/Dockerfile.insecure (ubuntu 20.04)",
+      "Class": "os-pkgs",
+      "Type": "ubuntu",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2024-1234",
+          "Title": "Example OpenSSL vulnerability",
+          "Description": "Critical buffer overflow in example package",
+          "Severity": "CRITICAL"
+        }
+      ]
+    }
+  ]
+}

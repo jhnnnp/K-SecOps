@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.env
+*.egg-info/
+dist/
+build/
+reports/TEST_*.md
+reports/AUDIT_*.md
+reports/CI_*.md
+!reports/SAMPLE_AUDIT_REPORT.md

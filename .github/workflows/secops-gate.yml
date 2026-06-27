@@ -1,0 +1,96 @@
+name: SecOps Gate
+
+on:
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  devsecops-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@v0.2.0
+
+      - name: Install Checkov
+        run: pip install checkov
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run DevSecOps CI gate
+        id: gate
+        env:
+          PYTHONPATH: src
+          SECOPS_REPO_SCAN: "1"
+          SECOPS_SECRETS_TARGET: "."
+          SECOPS_INFRA_TARGETS: "dummy-infra,Dockerfile"
+          SECOPS_TARGET: dummy-infra
+          SECOPS_AWS_LIVE: "0"
+          # Optional live AWS scan (set repository secrets: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+          # SECOPS_AWS_LIVE: ${{ secrets.AWS_ACCESS_KEY_ID != '' && '1' || '0' }}
+        run: python scripts/ci_gate.py
+
+      - name: Upload audit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: devsecops-reports
+          path: |
+            reports/CI_AUDIT_REPORT.md
+            reports/CI_SUMMARY.md
+
+      - name: Post PR summary comment
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summaryPath = 'reports/CI_SUMMARY.md';
+            if (!fs.existsSync(summaryPath)) {
+              core.setFailed('CI summary report not found');
+              return;
+            }
+            let body = fs.readFileSync(summaryPath, 'utf8');
+            const gateOutcome = '${{ steps.gate.outcome }}';
+            body = `<!-- devsecops-gate -->\n**CI Gate:** ${gateOutcome.toUpperCase()}\n\n` + body;
+            if (body.length > 60000) {
+              body = body.slice(0, 60000) + '\n\n...(truncated; see workflow artifact for full report)';
+            }
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.rest.issues.listComments({
+              owner, repo, issue_number,
+              per_page: 100
+            });
+            const existing = comments.data.find(c => c.body && c.body.includes('<!-- devsecops-gate -->'));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner, repo,
+                comment_id: existing.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number, body
+              });
+            }
+
+      - name: Enforce gate result
+        if: steps.gate.outcome != 'success'
+        run: exit 1

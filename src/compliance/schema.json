@@ -1,0 +1,114 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "agentic-k-secops/compliance",
+  "title": "Agentic K-SecOps Compliance Lookup Schema",
+  "description": "101통제 셀프진단 Lab 수준의 통제항목·Finding 매핑 스키마. LLM은 lookup 결과를 서술만 하며, 결함 사유·권고 조치는 JSON에서만 가져온다.",
+  "definitions": {
+    "ComplianceStatus": {
+      "type": "string",
+      "enum": ["적정", "미흡", "해당없음", "점검필요"]
+    },
+    "ActionPriority": {
+      "type": "string",
+      "enum": ["즉시", "단기", "중기", "장기"]
+    },
+    "Severity": {
+      "type": "string",
+      "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
+    },
+    "ControlItem": {
+      "type": "object",
+      "required": [
+        "control_id",
+        "framework",
+        "domain",
+        "category",
+        "title",
+        "checklist_question",
+        "assessment_method",
+        "related_regulation"
+      ],
+      "properties": {
+        "control_id": { "type": "string" },
+        "framework": { "type": "string", "enum": ["ISMS-P", "EFT"] },
+        "domain": { "type": "string" },
+        "category": { "type": "string" },
+        "title": { "type": "string" },
+        "checklist_question": {
+          "type": "string",
+          "description": "101통제 셀프진단 Lab 진단 질문 원문"
+        },
+        "assessment_method": {
+          "type": "string",
+          "description": "증적 수집 방법 (문서/시스템/인터뷰/자동스캔)"
+        },
+        "related_regulation": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "pass_criteria": {
+          "type": "string",
+          "description": "적정 판정 기준"
+        }
+      }
+    },
+    "DeficiencyTemplate": {
+      "type": "object",
+      "required": [
+        "compliance_status",
+        "deficiency_reason",
+        "deficiency_detail_template",
+        "recommended_action",
+        "action_priority",
+        "evidence_required"
+      ],
+      "properties": {
+        "compliance_status": { "$ref": "#/definitions/ComplianceStatus" },
+        "deficiency_reason": {
+          "type": "string",
+          "description": "결함 사유 (Lab 리포트 '미흡 사유' 필드)"
+        },
+        "deficiency_detail_template": {
+          "type": "string",
+          "description": "결함 상세. {resource}, {count}, {entity_type} 등 placeholder 사용"
+        },
+        "recommended_action": {
+          "type": "string",
+          "description": "권고 조치 (Lab 리포트 '개선 권고' 필드)"
+        },
+        "action_priority": { "$ref": "#/definitions/ActionPriority" },
+        "evidence_required": {
+          "type": "string",
+          "description": "조치 완료 후 제출·재검증 증적"
+        },
+        "tool_reference": {
+          "type": "string",
+          "description": "본 프로젝트 MCP Tool 연계 (예: mask_pii)"
+        }
+      }
+    },
+    "FindingRule": {
+      "type": "object",
+      "required": ["finding_type", "default_severity", "controls"],
+      "properties": {
+        "finding_type": { "type": "string" },
+        "default_severity": { "$ref": "#/definitions/Severity" },
+        "scanner_sources": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "controls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["control_id", "deficiency"],
+            "properties": {
+              "control_id": { "type": "string" },
+              "deficiency": { "$ref": "#/definitions/DeficiencyTemplate" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

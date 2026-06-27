@@ -1,0 +1,6 @@
+2026-06-27T09:15:22.123Z INFO  [payment-service] transaction started tx_id=tx-001
+2026-06-27T09:15:22.456Z DEBUG [user-service] customer lookup rrn=900101-1234567 name=Kim Test
+2026-06-27T09:15:23.001Z INFO  [payment-service] transfer to account=110-123-456789 amount=50000
+2026-06-27T09:15:23.512Z WARN  [auth-service] retry contact phone=010-9876-5432 attempt=2
+2026-06-27T09:15:24.003Z ERROR [notify-service] email dispatch failed target=test.user@example.com
+2026-06-27T09:15:24.890Z INFO  [payment-service] transaction completed tx_id=tx-001

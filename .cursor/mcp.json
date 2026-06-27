@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "agentic-k-secops": {
+      "command": "python",
+      "args": ["-m", "main"],
+      "cwd": "${workspaceFolder}/src",
+      "env": {}
+    }
+  }
+}

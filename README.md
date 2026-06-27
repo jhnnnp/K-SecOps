@@ -1,0 +1,218 @@
+# DevSecOps Compliance Pipeline (with MCP)
+
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=flat-square&logo=fastapi&logoColor=white)
+![MCP](https://img.shields.io/badge/Protocol-MCP-512BD4?style=flat-square)
+![ISMS-P](https://img.shields.io/badge/Compliance-ISMS--P-1565C0?style=flat-square)
+![EFT](https://img.shields.io/badge/Compliance-전자금융-E65100?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-43_passing-388E3C?style=flat-square)
+![CI](https://img.shields.io/badge/CI-SecOps_Gate-2088FF?style=flat-square&logo=githubactions&logoColor=white)
+
+> **Deterministic Python DevSecOps pipeline** — Trivy/Checkov/boto3 scan, ISMS-P·전자금융 Lab report, PR merge gate. MCP is the optional agent interface, not the security engine.
+
+[Sample Report](./reports/SAMPLE_AUDIT_REPORT.md) · [Repository](https://github.com/jhnnnp/K-SecOps) · [CI Evidence Guide](./docs/CI_EVIDENCE.md) · [AWS Live Scan](./docs/AWS_LIVE_SCAN.md) · [JD Mapping](./docs/JD_MAPPING.md)
+
+---
+
+## Dual-Target Scope (Core Design)
+
+```mermaid
+flowchart TB
+    subgraph PR["GitHub PR / ci_gate.py"]
+        G[SecOps Gate]
+    end
+
+    subgraph TrackA["Track A — Strict (real code)"]
+        S[audit_secrets]
+        SRC["Target: . (repo-wide)"]
+        SRC --> S
+        S -->|secret in src/| BLOCK[FAILED — no baseline]
+    end
+
+    subgraph TrackB["Track B — Regression (controlled)"]
+        I[scan_infrastructure]
+        FIX["Target: dummy-infra + Dockerfile"]
+        FIX --> I
+        I -->|known fixture findings| BASE[baseline allowlist → PASSED]
+    end
+
+    subgraph TrackC["Track C — AWS"]
+        A[audit_aws_config]
+        A --> JSON[local policy JSON]
+        A --> LIVE[boto3 S3 live — optional]
+    end
+
+    G --> S
+    G --> I
+    G --> A
+    G --> R[generate_compliance_report]
+    R --> CMT[PR comment + artifact]
+```
+
+| Track | Scanner | CI target | Gate behavior |
+|-------|---------|-----------|---------------|
+| **A** | `audit_secrets` | `.` (entire repo) | `src/` etc. secret → **immediate FAIL** |
+| **B** | `scan_infrastructure` | `dummy-infra`, `Dockerfile` | CRITICAL in fixture → baseline only |
+| **C** | `audit_aws_config` | `dummy-infra/aws` | policy JSON + optional boto3 live |
+
+- **MCP agent**: strict sandbox — `dummy-infra/`, `reports/` only
+- **CI**: `SECOPS_REPO_SCAN=1` — secrets scan real application code
+
+### CI Evidence (portfolio)
+
+| PASSED | FAILED (secret in `src/`) |
+|--------|---------------------------|
+| _[Add `docs/assets/ci-evidence/ci-pass.png` after GitHub PR]_ | _[Add `docs/assets/ci-evidence/ci-fail-secret.png`]_ |
+
+Step-by-step: **[docs/CI_EVIDENCE.md](./docs/CI_EVIDENCE.md)**
+
+---
+
+## What This Project Is
+
+1. **Deploy-pre infrastructure & code security scan** — Trivy, Checkov, regex secrets, AWS policy
+2. **Compliance translation** — findings → ISMS-P / 전자금융 Lab fields (JSON lookup, no LLM hallucination)
+3. **PR merge gate** — GitHub Actions [`secops-gate.yml`](.github/workflows/secops-gate.yml)
+4. **Optional MCP layer** — Cursor/Claude can invoke the same tools; core logic is plain Python
+
+**Not:** 24/7 SIEM, commercial WAF/EPP operation, or LLM-driven compliance judgment.
+
+---
+
+## Pipeline Steps
+
+1. **Scan** — Trivy + Checkov (CVE, misconfig)
+2. **PII masking** — KR_RRN, account numbers in logs
+3. **Secret audit** — AWS/API keys (repo-wide in CI)
+4. **AWS config audit** — IAM/S3 policy + optional boto3 live
+5. **Compliance report** — ISMS-P / EFT Markdown
+6. **CI gate** — block merge on new secrets / critical misconfigs
+
+```bash
+# Local gate (same as CI)
+PYTHONPATH=src python3 scripts/ci_gate.py
+
+# Simulate intentional FAIL logic
+PYTHONPATH=src python3 scripts/demo_intentional_fail.py
+```
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph CI
+        PR[Pull Request]
+        WF[secops-gate.yml]
+        CG[ci_gate.py]
+    end
+    subgraph Engine
+        T[tools/]
+        C[compliance/]
+    end
+    subgraph Targets
+        REPO[repo-wide secrets]
+        FIX[dummy-infra + Dockerfile]
+    end
+    PR --> WF --> CG --> T
+    T --> C
+    T --> REPO
+    T --> FIX
+    CG --> OUT[reports/CI_*.md]
+```
+
+| Layer | Path | Role |
+|-------|------|------|
+| CI | `.github/workflows/secops-gate.yml` | PR trigger, comment, artifact |
+| Gate | `scripts/ci_gate.py` | Dual-target orchestration + baseline |
+| Engine | `src/tools/` | Scanners, parsers, report |
+| Compliance | `src/compliance/` | ISMS-P / EFT JSON Lab lookup |
+| MCP (optional) | `src/mcp_server/server.py` | Agent tool bindings |
+
+---
+
+## MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `read_log_file` | Sandboxed reader (`dummy-infra/`, `reports/`) |
+| `mask_pii` | KR_RRN, KR_PHONE, ACCOUNT, EMAIL |
+| `scan_infrastructure` | Trivy + Checkov |
+| `audit_secrets` | Secrets (MCP: sandbox / CI: repo-wide) |
+| `audit_aws_config` | IAM/S3 policy + boto3 live |
+| `generate_compliance_report` | Lab-format Markdown |
+
+---
+
+## Quick Start
+
+```bash
+git clone https://github.com/jhnnnp/K-SecOps.git && cd K-SecOps
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+pip install -r requirements-dev.txt   # tests
+brew install trivy checkov
+
+PYTHONPATH=src python3 scripts/run_demo.py
+PYTHONPATH=src python3 scripts/ci_gate.py
+PYTHONPATH=src python3 -m pytest -q
+```
+
+AWS live scan: **[docs/AWS_LIVE_SCAN.md](./docs/AWS_LIVE_SCAN.md)**
+
+---
+
+## dummy-infra Scenarios
+
+| # | File | Vulnerability |
+|---|------|---------------|
+| 1 | `docker/Dockerfile.insecure` | root user, outdated base |
+| 2 | `k8s/deployment-vulnerable.yaml` | privileged, hostPath |
+| 3 | `k8s/service-nodeport.yaml` | NodePort |
+| 4 | `logs/app.log` | PII plaintext |
+| 5 | `.env.leaked` | AWS/API keys |
+| 6 | `aws/*.json` | S3 public, IAM admin wildcard |
+
+---
+
+## Limitations & Roadmap
+
+**Current scope (by design):**
+
+- Infrastructure scan uses **controlled fixture** (`dummy-infra`) + project `Dockerfile` to limit false positives and keep CI deterministic.
+- AWS live scan is **opt-in** (`SECOPS_AWS_LIVE=1`); CI defaults to local policy JSON.
+- ISMS-P coverage: ~25 controls mapped; schema supports 101 bulk import.
+
+**Roadmap:**
+
+| Phase | Item |
+|-------|------|
+| Now | GitHub PR PASSED/FAILED screenshots ([CI_EVIDENCE.md](./docs/CI_EVIDENCE.md)) |
+| Next | AWS ReadOnly live scan evidence ([AWS_LIVE_SCAN.md](./docs/AWS_LIVE_SCAN.md)) |
+| Post-MVP | Scanner worker in **Go** for performance; OPA/K8s admission; full 101-control import |
+
+---
+
+## Project Structure
+
+```text
+kakao/
+├── Dockerfile
+├── requirements.txt
+├── .github/workflows/secops-gate.yml
+├── config/secops-baseline.json
+├── scripts/ci_gate.py
+├── scripts/demo_intentional_fail.py
+├── dummy-infra/
+├── docs/CI_EVIDENCE.md
+├── docs/AWS_LIVE_SCAN.md
+├── src/tools/
+└── tests/
+```
+
+---
+
+## License
+
+MIT — see [LICENSE](./LICENSE)
