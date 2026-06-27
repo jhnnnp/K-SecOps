@@ -94,18 +94,21 @@ def test_dashboard_renders_gate_status_and_risk_gauge():
         ],
     )
 
-    html = render_secops_dashboard_html(ctx)
+    html_out = render_secops_dashboard_html(ctx)
 
-    assert "FAILED: Merge Blocked" in html
-    assert "PASSED: Safe to Merge" not in html
-    assert "Composite Risk Score" in html
-    assert "85" in html
-    assert "Application Blockers (Strict)" in html
-    assert "src/main.py" in html
-    assert "Baseline Fixtures (Allowed)" in html
-    assert "dummy-infra/.env.leaked" in html
-    assert "ISMS-2.7.2" in html
-    assert "cdn.tailwindcss.com" in html
+    assert "실패 — Merge 차단" in html_out
+    assert "통과 — Merge 가능" not in html_out
+    assert "복합 위험 점수" in html_out
+    assert "85" in html_out
+    assert "앱 코드 차단" in html_out
+    assert "src/main.py" in html_out
+    assert "픽스처 허용" in html_out
+    assert "dummy-infra/.env.leaked" in html_out
+    assert "ISMS-2.7.2" in html_out
+    assert "왜 탐지는 많은데 통과인가요" in html_out
+    assert "Merge 차단" in html_out
+    assert ctx.baseline_total == 1
+    assert "cdn.tailwindcss.com" in html_out
 
 
 def test_dashboard_passed_state():
@@ -134,6 +137,7 @@ def test_dashboard_passed_state():
         sbom_drift=SbomGateResult(manifest="requirements.txt", allowed_count=5, current_count=5, passed=True),
         violations=[],
     )
-    html = render_secops_dashboard_html(ctx)
-    assert "PASSED: Safe to Merge" in html
-    assert "No application blockers detected" in html
+    html_out = render_secops_dashboard_html(ctx)
+    assert "통과 — Merge 가능" in html_out
+    assert "앱 코드 차단 항목 없음" in html_out
+    assert "전체 스캔 탐지" in html_out
