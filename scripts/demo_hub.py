@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import sys
+import threading
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -53,7 +54,9 @@ def index() -> FileResponse:
 
 @app.get("/api/scenarios")
 def list_scenarios() -> list[dict[str, Any]]:
-    from demo_scenarios import SCENARIOS, asdict  # noqa: WPS433
+    from dataclasses import asdict
+
+    from demo_scenarios import SCENARIOS  # noqa: WPS433
 
     return [asdict(item) for item in SCENARIOS]
 
