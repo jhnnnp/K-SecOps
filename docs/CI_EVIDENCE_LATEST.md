@@ -1,6 +1,6 @@
 # CI Evidence (auto-synced)
 
-_Last updated: 2026-07-08 08:25 UTC_
+_Last updated: 2026-07-09 09:36 UTC_
 
 ![SecOps Gate workflow](https://img.shields.io/github/actions/workflow/status/jhnnnp/K-SecOps/secops-gate.yml?branch=main&label=SecOps%20Gate)
 
