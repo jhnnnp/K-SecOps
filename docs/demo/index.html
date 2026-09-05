@@ -101,6 +101,10 @@
       <div class="h-2 rounded-full bg-slate-800 overflow-hidden">
         <div id="progress-bar" class="h-full bg-sky-500 transition-all duration-500" style="width:0%"></div>
       </div>
+      <div id="progress-scenario-context" class="hidden rounded-lg border border-slate-800 bg-slate-950/50 px-4 py-3 text-sm space-y-1">
+        <p id="progress-situation" class="text-slate-300 leading-relaxed"></p>
+        <p id="progress-expected" class="text-xs text-slate-500"></p>
+      </div>
       <ol id="step-list" class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"></ol>
       <div class="grid gap-4 md:grid-cols-2">
         <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
@@ -118,14 +122,14 @@
 
     <section class="grid gap-4 md:grid-cols-2" id="scenario-grid"></section>
 
-    <section class="space-y-3">
-      <div class="flex items-center justify-between gap-4">
-        <h2 class="text-lg font-semibold text-white">Live Dashboard</h2>
-        <p id="dashboard-meta" class="text-xs text-slate-500"></p>
+    <section id="result-links-panel" class="hidden rounded-2xl border border-slate-700 bg-slate-900/80 p-6 space-y-4">
+      <div>
+        <p class="text-xs uppercase tracking-wider text-slate-500">실행 결과</p>
+        <h2 id="result-title" class="text-lg font-semibold text-white">—</h2>
+        <p id="result-summary" class="mt-1 text-sm text-slate-400"></p>
       </div>
-      <div class="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden">
-        <iframe id="dashboard-frame" title="SecOps Dashboard" class="w-full min-h-[720px] bg-white" src="about:blank"></iframe>
-      </div>
+      <div id="result-actions" class="flex flex-wrap gap-3"></div>
+      <p class="text-xs text-slate-500">새 탭에서 SecOps 대시보드 HTML이 열립니다.</p>
     </section>
 
     <footer class="text-xs text-slate-600 space-y-1">
@@ -136,24 +140,47 @@
 
   <script>
     const SCENARIOS = [
-      { id: "2", title: "Local PASS gate", kind: "local",
-        desc: "main 기준 ci_gate → PASS 대시보드 (즉시)",
-        flow: "로컬 gate만 · commit/push/PR 없음" },
-      { id: "3", title: "Local FAIL gate", kind: "local",
-        desc: "src/ 시크릿 주입 → FAIL 대시보드 (즉시)",
-        flow: "로컬 gate만 · commit/push/PR 없음" },
-      { id: "5", title: "PR PASS", kind: "pr",
-        desc: "docs 변경 → 자동 commit → push → PR → CI 초록",
-        flow: "commit → push → PR → SecOps Gate CI" },
-      { id: "6", title: "PR FAIL", kind: "pr",
-        desc: "src/ 예시 키 → 자동 commit → push → PR → merge 차단",
-        flow: "commit → push → PR → SecOps Gate CI" },
+      {
+        id: "2",
+        title: "Local PASS gate",
+        kind: "local",
+        situation: "배포 전 로컬에서 SecOps 게이트를 돌려, 현재 코드베이스가 정책을 통과하는지 빠르게 확인하는 상황입니다.",
+        changes: "코드 변경 없음 — main 기준으로 스캔만 실행합니다.",
+        flow: "로컬 ci_gate.py · commit / push / PR 없음",
+        expected: "PASS — Risk 낮음, blocker 0, SecOps 대시보드 초록",
+      },
+      {
+        id: "3",
+        title: "Local FAIL gate",
+        kind: "local",
+        situation: "개발자가 실수로 AWS 예시 키 패턴을 src/에 넣었을 때, 게이트가 즉시 차단하는지 검증하는 상황입니다.",
+        changes: "src/main.py 상단에 데모용 예시 키 한 줄 주입 (로컬에서만, Git 반영 안 함).",
+        flow: "로컬 ci_gate.py · commit / push / PR 없음",
+        expected: "FAIL — 시크릿 탐지, blocker 발생, merge 시 차단될 상태",
+      },
+      {
+        id: "5",
+        title: "PR PASS",
+        kind: "pr",
+        situation: "인프라/문서만 수정한 안전한 PR이 올라왔을 때 — CI가 통과하고 머지 가능한 정상 흐름을 보여줍니다.",
+        changes: "dummy-infra/README.md 에 타임스탬프 주석 추가 → demo/ci-pass 브랜치.",
+        flow: "patch → commit → push → PR 생성 → SecOps Gate CI",
+        expected: "CI 초록 · PR merge 가능 · PASS 대시보드",
+      },
+      {
+        id: "6",
+        title: "PR FAIL",
+        kind: "pr",
+        situation: "애플리케이션 코드에 자격 증명이 포함된 PR이 올라왔을 때 — CI가 실패하고 머지가 막히는 상황입니다.",
+        changes: "src/main.py 에 AWS 문서 예시 키 추가 → demo/ci-fail-secret 브랜치.",
+        flow: "patch → commit → push → PR 생성 → SecOps Gate CI",
+        expected: "CI 빨강 · merge 차단 · FAIL 대시보드 (의도적 데모, 머지 금지)",
+      },
     ];
 
     const grid = document.getElementById("scenario-grid");
     const banner = document.getElementById("status-banner");
-    const frame = document.getElementById("dashboard-frame");
-    const meta = document.getElementById("dashboard-meta");
+    const resultPanel = document.getElementById("result-links-panel");
     const progressPanel = document.getElementById("progress-panel");
     const ghAuthPanel = document.getElementById("gh-auth-panel");
     const wrongOrigin = document.getElementById("wrong-origin");
@@ -171,16 +198,39 @@
       grid.innerHTML = SCENARIOS.map(s => {
         const prBlocked = s.kind === "pr" && isHubServer && (!ghAuthed || !gitClean);
         const blockReason = !ghAuthed ? "gh CLI 로그인 필요 ↑" : (!gitClean ? "Git 변경사항 정리 필요 ↑" : "");
+        const verdictClass = s.expected.startsWith("PASS") || s.expected.startsWith("CI 초록")
+          ? "text-emerald-400"
+          : s.expected.startsWith("FAIL") || s.expected.startsWith("CI 빨강")
+            ? "text-rose-400"
+            : "text-slate-400";
         return `
         <article class="rounded-xl border ${s.kind === "pr" ? "border-sky-900/60" : "border-slate-800"} bg-slate-900/60 p-5 flex flex-col gap-3 ${prBlocked ? "opacity-70" : ""}">
-          <div>
-            <p class="text-xs uppercase tracking-wider ${s.kind === "pr" ? "text-sky-500" : "text-emerald-600"}">
-              Scenario ${s.id} · ${s.kind === "pr" ? "GitHub PR" : "Local only"}
-            </p>
-            <h3 class="mt-1 text-lg font-medium text-white">${s.title}</h3>
-            <p class="mt-2 text-sm text-slate-400">${s.desc}</p>
-            <p class="mt-2 rounded-md bg-slate-950/60 px-2 py-1 text-xs font-mono ${s.kind === "pr" ? "text-sky-300" : "text-emerald-400"}">${s.flow}</p>
-            ${prBlocked ? `<p class="mt-2 text-xs text-amber-400">${blockReason}</p>` : ""}
+          <div class="space-y-3">
+            <div>
+              <p class="text-xs uppercase tracking-wider ${s.kind === "pr" ? "text-sky-500" : "text-emerald-600"}">
+                Scenario ${s.id} · ${s.kind === "pr" ? "GitHub PR" : "Local only"}
+              </p>
+              <h3 class="mt-1 text-lg font-medium text-white">${s.title}</h3>
+            </div>
+            <dl class="space-y-2 text-sm">
+              <div>
+                <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">상황</dt>
+                <dd class="mt-0.5 text-slate-300 leading-relaxed">${s.situation}</dd>
+              </div>
+              <div>
+                <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">변경 내용</dt>
+                <dd class="mt-0.5 text-slate-400 leading-relaxed">${s.changes}</dd>
+              </div>
+              <div>
+                <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">실행 흐름</dt>
+                <dd class="mt-0.5 rounded-md bg-slate-950/60 px-2 py-1 text-xs font-mono ${s.kind === "pr" ? "text-sky-300" : "text-emerald-400"}">${s.flow}</dd>
+              </div>
+              <div>
+                <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">기대 결과</dt>
+                <dd class="mt-0.5 text-xs font-medium ${verdictClass}">${s.expected}</dd>
+              </div>
+            </dl>
+            ${prBlocked ? `<p class="text-xs text-amber-400">${blockReason}</p>` : ""}
           </div>
           <button data-id="${s.id}" data-kind="${s.kind}" class="scenario-run mt-auto rounded-lg px-4 py-2 text-sm font-medium transition disabled:opacity-40 disabled:cursor-not-allowed
             ${s.kind === "pr" ? "bg-sky-600 hover:bg-sky-500 text-white" : "bg-emerald-700 hover:bg-emerald-600 text-white"}"
@@ -209,7 +259,18 @@
       btn.disabled = true;
       btn.textContent = "Running…";
       progressPanel.classList.remove("hidden");
+      if (resultPanel) resultPanel.classList.add("hidden");
+      const scenario = SCENARIOS.find(s => s.id === String(id));
       document.getElementById("progress-title").textContent = "Scenario " + id + " 실행 중";
+      document.getElementById("progress-message").textContent = "준비 중…";
+      const ctxPanel = document.getElementById("progress-scenario-context");
+      if (scenario && ctxPanel) {
+        document.getElementById("progress-situation").textContent = scenario.situation;
+        document.getElementById("progress-expected").textContent = "기대 결과: " + scenario.expected;
+        ctxPanel.classList.remove("hidden");
+      } else if (ctxPanel) {
+        ctxPanel.classList.add("hidden");
+      }
       resetProgress();
 
       try {
@@ -255,10 +316,9 @@
           showBanner(job.error || "Failed", "error");
           return;
         }
-        showBanner("Scenario " + scenarioId + " complete — " + (job.conclusion || "done"), "success");
-        if (job.dashboard_url) frame.src = job.dashboard_url + "?t=" + Date.now();
-        renderLinks(job);
-        await refreshStatus();
+        const bannerKind = job.conclusion === "failure" ? "warn" : "success";
+        showBanner("Scenario " + scenarioId + " complete — " + (job.conclusion || "done"), bannerKind);
+        showResultLinks(job, scenarioId);
         return;
       }
       showBanner("Timed out waiting for job", "error");
@@ -317,12 +377,65 @@
       document.getElementById("log-view").textContent = "";
     }
 
-    function renderLinks(job) {
-      const links = [];
-      if (job.pr_url) links.push(`<a class="text-sky-400 hover:underline" href="${job.pr_url}" target="_blank">PR</a>`);
-      if (job.run_url) links.push(`<a class="text-sky-400 hover:underline" href="${job.run_url}" target="_blank">Actions run</a>`);
-      if (job.details && job.details.head_sha) links.push(`<span class="font-mono">${job.details.head_sha}</span>`);
-      if (links.length) meta.innerHTML = links.join(" · ");
+    function absUrl(path) {
+      if (!path) return "";
+      if (path.startsWith("http")) return path;
+      return location.origin + path;
+    }
+
+    function showResultLinks(job, scenarioId) {
+      const panel = document.getElementById("result-links-panel");
+      if (!panel) return;
+
+      const scenario = SCENARIOS.find(s => s.id === String(scenarioId));
+      const title = document.getElementById("result-title");
+      const summary = document.getElementById("result-summary");
+      const actions = document.getElementById("result-actions");
+
+      const verdict = job.conclusion === "success" || job.conclusion === "failure"
+        ? job.conclusion.toUpperCase()
+        : (job.conclusion || "done");
+      if (title) title.textContent = `Scenario ${scenarioId} · ${scenario ? scenario.title : "Demo"} — ${verdict}`;
+      if (summary) {
+        const parts = [];
+        if (scenario && scenario.situation) parts.push(scenario.situation);
+        if (job.message) parts.push(job.message);
+        if (job.details?.gate?.risk_score != null) parts.push(`Risk ${job.details.gate.risk_score}/100`);
+        summary.textContent = parts.join(" · ") || "게이트 실행이 완료되었습니다.";
+      }
+
+      const dashPath = job.dashboard_url || `/live/scenario-${scenarioId}.html`;
+      const dashUrl = absUrl(dashPath) + "?t=" + Date.now();
+      const btns = [];
+
+      btns.push(`<a href="${dashUrl}" target="_blank" rel="noopener"
+        class="inline-flex items-center rounded-lg bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-500">
+        SecOps 대시보드 열기</a>`);
+
+      if (job.pr_url) {
+        btns.push(`<a href="${job.pr_url}" target="_blank" rel="noopener"
+          class="inline-flex items-center rounded-lg border border-sky-600 px-5 py-3 text-sm font-medium text-sky-300 hover:bg-sky-950">
+          GitHub PR</a>`);
+      }
+      if (job.run_url) {
+        btns.push(`<a href="${job.run_url}" target="_blank" rel="noopener"
+          class="inline-flex items-center rounded-lg border border-slate-600 px-5 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800">
+          CI Actions Run</a>`);
+      }
+
+      if (actions) actions.innerHTML = btns.join("");
+      panel.classList.remove("hidden");
+      panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    function showResultLinksFromHub(entry, scenarioId) {
+      showResultLinks({
+        conclusion: entry.conclusion,
+        message: entry.title,
+        dashboard_url: "/" + (entry.dashboard_path || `live/scenario-${scenarioId}.html`),
+        pr_url: entry.pr_url,
+        run_url: entry.run_url,
+      }, scenarioId);
     }
 
     async function refreshStatus() {
@@ -330,16 +443,11 @@
         const res = await fetch("/api/active?t=" + Date.now());
         if (!res.ok) return;
         const data = await res.json();
+        if (data.running_jobs && data.running_jobs.length) return;
         const hub = data.hub || {};
         const active = hub.active_scenario;
         if (!active || !hub.scenarios || !hub.scenarios[active]) return;
-        const entry = hub.scenarios[active];
-        if (entry.dashboard_path) frame.src = entry.dashboard_path + "?t=" + Date.now();
-        const links = [];
-        if (entry.pr_url) links.push(`<a class="text-sky-400 hover:underline" href="${entry.pr_url}" target="_blank">PR</a>`);
-        if (entry.run_url) links.push(`<a class="text-sky-400 hover:underline" href="${entry.run_url}" target="_blank">CI run</a>`);
-        if (entry.head_sha) links.push(`<span class="font-mono">${entry.head_sha.slice(0, 7)}</span>`);
-        if (links.length) meta.innerHTML = links.join(" · ");
+        showResultLinksFromHub(hub.scenarios[active], active);
       } catch (_) { /* ignore */ }
     }
 
