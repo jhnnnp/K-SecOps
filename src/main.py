@@ -1,3 +1,4 @@
+_DEMO_CI_FAIL_KEY = "AKIAIOSFODNN7EXAMPLE"  # demo-only: remove after CI evidence
 import uvicorn
 from fastapi import FastAPI
 
