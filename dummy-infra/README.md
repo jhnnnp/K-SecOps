@@ -26,3 +26,5 @@ PYTHONPATH=src python3 scripts/run_demo.py
 
 - `test_log.txt`는 Phase 1.1 호환용 별칭 (내용 동일)
 - 배포·커밋 금지 — 로컬 시연 전용
+
+<!-- ci-pass-demo: 2026-06-27 18:13 UTC -->
